@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omatunes",
+  "name": "OmaTUNES Player",
+  "version": "1.3.1",
+  "author": "prof. dog",
+  "description": "Omatunes Deluxe bar widget: now-playing, transport, shuffle, repeat and like",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "OmaTUNES",
+    "description": "Omatunes Deluxe now-playing widget with transport controls",
+    "category": "Media",
+    "allowMultiple": false
+  }
+}
