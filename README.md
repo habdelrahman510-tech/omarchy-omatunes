@@ -1,4 +1,4 @@
-# omarchy-omatunes
+# Omatunes Plugin
 
 Bar widget for [Omatunes Deluxe](https://github.com/habdelrahman510-tech/Omatunes-Deluxe) — the
 native Wayland music player for Omarchy.
