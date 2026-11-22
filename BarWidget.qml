@@ -36,11 +36,15 @@ BarWidget {
   // The whole point of the fixed width: every track — a one-word title or a
   // 60-character one — lands in the same box. The label owns whatever is left
   // after the disc, the control and the gaps, and elides there.
-  readonly property real pillWidth: Style.space(238)
-  readonly property real padX: Style.space(9)
-  readonly property real artSize: Style.space(20)
-  readonly property real controlSize: Style.space(18)
-  readonly property real gap: Style.space(6)
+  // Compact footprint: the pill lives in a row of ~26px icon widgets, so it
+  // has to read as one compact control, not a banner. At 168px it still has
+  // room for the disc, a short elided label and the play control, with the
+  // progress hairline running the inner width.
+  readonly property real pillWidth: Style.space(168)
+  readonly property real padX: Style.space(7)
+  readonly property real artSize: Style.space(18)
+  readonly property real controlSize: Style.space(16)
+  readonly property real gap: Style.space(5)
   readonly property real labelWidth: Math.max(0, pillWidth - padX * 2 - artSize - controlSize - gap * 2)
 
   readonly property bool online: root.service.available
