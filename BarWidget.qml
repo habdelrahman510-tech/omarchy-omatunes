@@ -102,13 +102,42 @@ BarWidget {
     acceptedButtons: Qt.LeftButton | Qt.MiddleButton
     cursorShape: Qt.PointingHandCursor
 
+    property bool controlHovered: false
+
+    // One hit area owns every click. Nested MouseAreas inside the Row sit in
+    // the bar's own coordinate system and are not reliably under the pointer;
+    // dispatching from here against the real item geometry always lands.
+    function hitTest(x, y) {
+      var p = content.mapFromItem(bodyArea, x, y)
+      var cx = controlFrame.mapToItem(content, 0, 0)
+      var ax = artFrame.mapToItem(content, 0, 0)
+      if (p.x >= cx.x && p.x <= cx.x + controlFrame.width
+        && p.y >= cx.y && p.y <= cx.y + controlFrame.height) return "control"
+      if (p.x >= ax.x && p.x <= ax.x + artFrame.width
+        && p.y >= ax.y && p.y <= ax.y + artFrame.height) return "art"
+      return "body"
+    }
+
+    onPositionChanged: function (mouse) {
+      controlHovered = hitTest(mouse.x, mouse.y) === "control"
+    }
+
     onClicked: function (mouse) {
-      if (mouse.button === Qt.MiddleButton) root.service.toggleLike()
+      if (mouse.button === Qt.MiddleButton) {
+        root.service.toggleLike()
+        return
+      }
+      var hit = hitTest(mouse.x, mouse.y)
+      if (hit === "control") root.service.toggleOrLaunch()
+      else if (hit === "art") root.service.showApp()
       else root.popupOpen = !root.popupOpen
     }
 
     onEntered: if (root.bar) root.bar.showTooltip(root, root.label)
-    onExited: if (root.bar) root.bar.hideTooltip(root)
+    onExited: {
+      controlHovered = false
+      if (root.bar) root.bar.hideTooltip(root)
+    }
   }
 
   Row {
@@ -180,13 +209,6 @@ BarWidget {
         font.family: root.fontFamily
         font.pixelSize: Math.round(Style.font.bodySmall * 0.85)
       }
-
-      // The album art is the Omatunes window: no second button, no branding.
-      MouseArea {
-        anchors.fill: parent
-        cursorShape: Qt.PointingHandCursor
-        onClicked: root.service.showApp()
-      }
     }
 
     // -------------------------------------------------------------- label
@@ -214,7 +236,7 @@ BarWidget {
       Rectangle {
         anchors.fill: parent
         radius: width / 2
-        color: controlArea.containsMouse ? root.withAlpha(root.barForeground, 0.12) : "transparent"
+        color: bodyArea.controlHovered ? root.withAlpha(root.barForeground, 0.12) : "transparent"
         Behavior on color { ColorAnimation { duration: Style.duration(120) } }
       }
 
@@ -224,16 +246,6 @@ BarWidget {
         color: root.barForeground
         font.family: root.fontFamily
         font.pixelSize: Math.round(Style.font.body * 0.95)
-      }
-
-      MouseArea {
-        id: controlArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        // One control, two meanings: transport when the app is up, a hidden
-        // start when it is not.
-        onClicked: root.service.toggleOrLaunch()
       }
     }
   }
