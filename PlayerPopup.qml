@@ -73,29 +73,28 @@ KeyboardPanel {
       : byWidth
     return popup.fittedContentWidth(Math.min(byWidth, byHeight))
   }
+  // The panel already animates its own drawnHeight toward contentHeight with
+  // a 200ms ease-out. A second, overshooting height tween here fought it and
+  // made the menu stutter. The panel owns the height; the menu gets one
+  // matching fade/slide instead.
   contentHeight: {
-    // The utility menu needs room a compact card does not otherwise have, so
-    // the card grows downward to hold it and shrinks back when it closes — the
-    // panel animates that height change, so it reads as a stretch, not a jump.
+    var base = Math.round(popup.contentWidth * popup.designHeight / popup.designWidth)
     var desired = popup.menuOpen
       ? Math.round(popup.menuTop + (menu ? menu.height : 0) + popup.unit * 10)
-      : Math.round(popup.contentWidth * popup.designHeight / popup.designWidth)
+      : base
     return popup.availableCardHeight > 0
       ? Math.min(desired, Math.round(popup.availableCardHeight))
       : desired
   }
 
-  // A height change alone does not always commit a frame in this panel: the
-  // closing menu could hide and shrink while the surface kept showing the old
-  // frame until something else forced a repaint. Animating the height commits a
-  // frame per step, which repaints the vacated band, and reads as the stretch
-  // the card is supposed to do.
-  Behavior on contentHeight {
+  // One value drives the menu's fade and slide, on the panel's own timeline.
+  property real menuProgress: popup.menuOpen ? 1 : 0
+  Behavior on menuProgress {
     enabled: popup.motionEnabled
     NumberAnimation {
-      duration: popup.motionDuration
+      duration: Style.duration(200)
       easing.type: Easing.Bezier
-      easing.bezierCurve: popup.motionBezier
+      easing.bezierCurve: Style.easeOut
     }
   }
 
@@ -613,7 +612,7 @@ KeyboardPanel {
   Item {
     id: outsideCatcher
     anchors.fill: parent
-    visible: popup.menuOpen
+    visible: popup.menuProgress > 0.001
     z: 10
     TapHandler {
       onTapped: popup.menuOpen = false
@@ -622,15 +621,17 @@ KeyboardPanel {
 
   BorderSurface {
     id: menu
-    visible: popup.menuOpen
+    visible: popup.menuProgress > 0.001
+    opacity: popup.menuProgress
     z: 11
 
     // Sits under the transport row, in the room the card grows for it while it
-    // is open. Nothing above it is covered.
+    // is open. Slides the last few pixels into place as it fades, so the card
+    // growing underneath and the menu arriving read as one motion.
     width: Math.round(Math.min(popup.contentWidth - 16, popup.unit * 356))
     height: menuColumn.implicitHeight + menu.padding * 2
     x: Math.round(Math.max(8, Math.min(popup.contentWidth - width - 8, popup.unit * 388)))
-    y: Math.round(popup.menuTop)
+    y: Math.round(popup.menuTop - (1 - popup.menuProgress) * popup.unit * 10)
     padding: Math.round(popup.unit * 10)
     radius: Math.max(4, popup.radius)
     color: popup.surface
