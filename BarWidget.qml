@@ -1,467 +1,261 @@
 import QtQuick
-import QtQuick.Layouts
-import QtQuick.Controls
-import Quickshell
-import Quickshell.Services.Mpris
-import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
+import "lib"
+import "lib/Colors.js" as Colors
 
+// Omatunes companion — the standalone bar pill.
+//
+// Fixed footprint: the pill occupies exactly the same box whether it is showing
+// a track, waiting for one, or reporting that Omatunes is not running. A track
+// title longer than the box elides inside it; nothing about the music moves the
+// rest of the bar.
+//
+// It is also always there. With no player the disc goes quiet, the label says
+// so, and the single control becomes a play button that starts Omatunes hidden
+// (`--background`) and begins playback — no window steals the desktop. The
+// album art is the other door: it asks the running instance for its window (or
+// launches a visible one when there is nothing to ask).
+//
+// All state comes from the persistent `OmatunesService` singleton, which lives
+// for the whole shell session whether this pill exists or not.
 BarWidget {
-    id: root
-    moduleName: "omatunes"
+  id: root
+  moduleName: "omatunes"
 
-    Process {
-        id: execProcess
+  readonly property var service: OmatunesService
+  readonly property var theme: ThemeAdapter.tokens
+
+  readonly property color barForeground: bar && bar.barForeground !== undefined ? bar.barForeground : Commons.Color.foreground
+  readonly property color accent: bar && bar.accent !== undefined ? bar.accent : Commons.Color.accent
+  readonly property string fontFamily: bar && bar.fontFamily ? bar.fontFamily : Style.font.family
+
+  // ------------------------------------------------------------ geometry
+  //
+  // The whole point of the fixed width: every track — a one-word title or a
+  // 60-character one — lands in the same box. The label owns whatever is left
+  // after the disc, the control and the gaps, and elides there.
+  readonly property real pillWidth: Style.space(238)
+  readonly property real padX: Style.space(9)
+  readonly property real artSize: Style.space(20)
+  readonly property real controlSize: Style.space(18)
+  readonly property real gap: Style.space(6)
+  readonly property real labelWidth: Math.max(0, pillWidth - padX * 2 - artSize - controlSize - gap * 2)
+
+  readonly property bool online: root.service.available
+  readonly property string label: {
+    if (!root.online) return "Omatunes"
+    var artist = root.service.artist
+    var title = root.service.title
+    if (artist && title) return artist + " — " + title
+    return title || artist || "Omatunes"
+  }
+  readonly property string statusGlyph: root.service.isPlaying ? "\uF04C" : "\uF04B"
+  readonly property real progress: root.online && root.service.length > 0
+    ? Math.max(0, Math.min(1, root.service.position / root.service.length))
+    : 0
+
+  readonly property string glyphHeart: "\uF004"
+
+  property bool popupOpen: false
+
+  function close() {
+    root.popupOpen = false
+  }
+
+  visible: true
+  implicitWidth: root.pillWidth
+  implicitHeight: barSize
+
+  // Its own capsule: the bar's section background does not extend under a
+  // third-party widget, so without this the contents float. Rest, hover and
+  // playing each get a slightly different tint — the same language the
+  // workspaces pill uses.
+  Rectangle {
+    anchors.fill: parent
+    radius: height / 2
+    color: root.withAlpha(root.barForeground, bodyArea.containsMouse ? 0.12 : 0.06)
+    Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+  }
+
+  Connections {
+    target: root.service
+    // A player that quits while its card is open must not leave a dead card.
+    function onAvailableChanged() {
+      if (!root.service.available) root.popupOpen = false
+    }
+  }
+
+  // The body is the popup surface; middle-click is still the like.
+  MouseArea {
+    id: bodyArea
+    anchors.fill: parent
+    hoverEnabled: true
+    acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+    cursorShape: Qt.PointingHandCursor
+
+    onClicked: function (mouse) {
+      if (mouse.button === Qt.MiddleButton) root.service.toggleLike()
+      else root.popupOpen = !root.popupOpen
     }
 
-    function runCmd(cmdStr) {
-        execProcess.command = ["bash", "-c", cmdStr];
-        execProcess.running = true;
-    }
+    onEntered: if (root.bar) root.bar.showTooltip(root, root.label)
+    onExited: if (root.bar) root.bar.hideTooltip(root)
+  }
 
-    function focusOmatunes() {
-        runCmd("hyprctl dispatch focuswindow class:^omatunes$ || hyprctl dispatch focuswindow title:OmaTUNES || omarchy-launch-or-focus omatunes");
-    }
+  Row {
+    id: content
+    anchors.centerIn: parent
+    spacing: root.gap
 
-    // STRICT OmaTUNES matching ONLY - Never fall back to other media players!
-    readonly property var activePlayer: {
-        var players = Mpris.players ? Mpris.players.values : [];
-        for (var i = 0; i < players.length; i++) {
-            var p = players[i];
-            if (!p) continue;
-            var bus = (p.busName || "").toLowerCase();
-            var id = (p.identity || "").toLowerCase();
-            var entry = (p.desktopEntry || "").toLowerCase();
-            if (bus.indexOf("omatunes") !== -1 || id.indexOf("omatunes") !== -1 || entry.indexOf("omatunes") !== -1) {
-                return p;
-            }
-        }
-        return null; // Return null if OmaTUNES is not running
-    }
+    // ------------------------------------------------------------- artwork
+    Item {
+      id: artFrame
+      width: root.artSize
+      height: root.artSize
+      anchors.verticalCenter: parent.verticalCenter
 
-    readonly property string playIcon: (activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing) ? "󰏤" : "󰐊"
-    readonly property string trackTitle: activePlayer ? (activePlayer.trackTitle || "") : ""
-    readonly property string artistName: {
-        if (!activePlayer) return "";
-        var a = activePlayer.trackArtists;
-        if (!a) return "";
-        if (Array.isArray(a)) return a.join(", ");
-        return String(a);
-    }
-
-    // State properties synced via cache file & MPRIS
-    property bool isLiked: false
-    property bool isShuffleOn: false
-    property bool isRepeatOn: false
-
-    Process {
-        id: stateCheckProcess
-        command: ["bash", "-c", "cat \"$HOME/.cache/omatunes_current_state.json\""]
-        stdout: SplitParser {
-            onRead: data => {
-                try {
-                    var obj = JSON.parse(data.trim());
-                    if (obj.liked !== undefined) root.isLiked = (obj.liked === true);
-                    if (obj.shuffle !== undefined) root.isShuffleOn = (obj.shuffle === true);
-                    if (obj.repeat !== undefined) root.isRepeatOn = (obj.repeat === true);
-                } catch(e) {}
-            }
-        }
-    }
-
-    Timer {
-        interval: 500
-        running: true
-        repeat: true
-        onTriggered: {
-            stateCheckProcess.running = true;
-            if (activePlayer) {
-                if (activePlayer.shuffle !== undefined) root.isShuffleOn = activePlayer.shuffle;
-                if (activePlayer.loopStatus !== undefined) {
-                    var ls = String(activePlayer.loopStatus);
-                    root.isRepeatOn = (ls !== "None" && ls !== "0");
-                }
-            }
-        }
-    }
-
-    // Bar label: Music Note glyph ONLY when offline; Title - Artist + Heart when playing
-    readonly property string labelText: {
-        if (!activePlayer) return ""; // nf-fa-music glyph only when offline
-        var titleStr = activePlayer.trackTitle || "";
-        var artistStr = artistName;
-        var full = (artistStr && titleStr) ? artistStr + " - " + titleStr : (titleStr || artistStr);
-        if (!full) return "";
-        var displayStr = playIcon + "  " + (full.length > 50 ? full.substring(0, 50) + "…" : full);
-        if (root.isLiked) {
-            displayStr += "  ";
-        }
-        return displayStr;
-    }
-
-    // Artwork resolution logic
-    readonly property string artworkUrl: {
-        if (activePlayer && activePlayer.trackArtUrl && activePlayer.trackArtUrl.length > 0) {
-            return activePlayer.trackArtUrl;
-        }
-        if (activePlayer && activePlayer.url && activePlayer.url.length > 0) {
-            var u = activePlayer.url;
-            var dir = u.substring(0, u.lastIndexOf("/"));
-            return dir + "/cover.jpg";
-        }
-        return "";
-    }
-
-    property double trackPosition: activePlayer ? activePlayer.position : 0
-    property bool isDraggingSeek: false
-
-    Timer {
-        interval: 500
-        running: popupCard.open && activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing && !root.isDraggingSeek
-        repeat: true
-        onTriggered: {
-            if (activePlayer) {
-                root.trackPosition = activePlayer.position;
-            }
-        }
-    }
-
-    visible: root.activePlayer !== null
-    implicitWidth: visible ? button.implicitWidth : 0
-    implicitHeight: visible ? button.implicitHeight : 0
-
-    WidgetButton {
-        id: button
+      Rectangle {
+        id: disc
         anchors.fill: parent
-        bar: root.bar
-        text: root.labelText
-        horizontalMargin: 8
-        verticalPadding: 6
+        // A half-circle, not a square: the album art reads as a disc in the bar
+        // instead of a second little card next to the label.
+        radius: width / 2
+        color: root.bar && root.bar.hoverBackground !== undefined
+          ? root.bar.hoverBackground : Commons.Color.popups.background
+        clip: true
 
-        onPressed: function(btn) {
-            if (btn === Qt.RightButton) {
-                popupCard.open = !popupCard.open;
-            } else if (btn === Qt.LeftButton) {
-                if (root.activePlayer && root.activePlayer.togglePlaying) {
-                    root.activePlayer.togglePlaying();
-                } else {
-                    root.runCmd("playerctl --player=omatunes play-pause");
-                }
-            } else if (btn === Qt.MiddleButton) {
-                root.runCmd("python3 -c \"import socket; s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.sendto(b'like', ('127.0.0.1', 18888))\"");
-                root.isLiked = !root.isLiked;
-            }
+        Image {
+          anchors.fill: parent
+          asynchronous: true
+          cache: true
+          smooth: true
+          fillMode: Image.PreserveAspectCrop
+          source: root.online && root.service.artUrl !== "" ? root.service.artUrl : ""
+          sourceSize.width: 40
+          sourceSize.height: 40
+          visible: status === Image.Ready
         }
 
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-            onWheel: function(wheel) {
-                if (wheel.angleDelta.y > 0) {
-                    if (root.activePlayer && root.activePlayer.volume !== undefined) root.activePlayer.volume = Math.min(1.0, root.activePlayer.volume + 0.05);
-                    else root.runCmd("playerctl --player=omatunes volume 0.05+");
-                } else if (wheel.angleDelta.y < 0) {
-                    if (root.activePlayer && root.activePlayer.volume !== undefined) root.activePlayer.volume = Math.max(0.0, root.activePlayer.volume - 0.05);
-                    else root.runCmd("playerctl --player=omatunes volume 0.05-");
-                }
-            }
+        Text {
+          anchors.centerIn: parent
+          visible: !(root.online && root.service.artUrl)
+          text: "\uF001"
+          color: root.barForeground
+          opacity: root.online ? 1 : 0.4
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
+      }
+
+      // A quiet ring that only lights while something is actually playing.
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: "transparent"
+        border.width: Math.max(1, Style.space(1))
+        border.color: root.accent
+        opacity: root.online && root.service.isPlaying ? 0.75 : 0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(220) } }
+      }
+
+      // Liked: a small heart riding the disc rather than a glyph in the row,
+      // so liking a track cannot change the pill's width.
+      Text {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: -Math.round(Style.space(2))
+        anchors.bottomMargin: -Math.round(Style.space(2))
+        visible: root.online && root.service.liked
+        text: root.glyphHeart
+        color: root.bar && root.bar.urgent !== undefined ? root.bar.urgent : Commons.Color.urgent
+        font.family: root.fontFamily
+        font.pixelSize: Math.round(Style.font.bodySmall * 0.85)
+      }
+
+      // The album art is the Omatunes window: no second button, no branding.
+      MouseArea {
+        anchors.fill: parent
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.service.showApp()
+      }
     }
 
-    PopupCard {
-        id: popupCard
-        anchorItem: button
-        bar: root.bar
-        padding: 16
-        contentWidth: 380
-        contentHeight: 490
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 14
-
-                // Album Artwork (75% width of card, 1:1 square) -> Clickable to focus OmaTUNES
-                Rectangle {
-                    Layout.alignment: Qt.AlignHCenter
-                    implicitWidth: parent.width * 0.75
-                    implicitHeight: parent.width * 0.75
-                    radius: 12
-                    color: Color.background
-                    border.color: Color.muted
-                    border.width: 1
-                    clip: true
-
-                    Image {
-                        id: albumArt
-                        anchors.fill: parent
-                        fillMode: Image.PreserveAspectCrop
-                        source: root.artworkUrl
-                        cache: false
-                        asynchronous: true
-                        visible: status === Image.Ready
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        visible: albumArt.status !== Image.Ready
-                        text: "" // nf-fa-music
-                        color: Color.muted
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 56
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.focusOmatunes()
-                    }
-                }
-
-                // Track Info & Red Heart Button (Clickable -> Focus App)
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 8
-
-                        Text {
-                            text: root.activePlayer ? (root.activePlayer.trackTitle || "") : ""
-                            color: Color.foreground
-                            font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                            font.pixelSize: Style.font.heading + 2
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Layout.maximumWidth: 260
-                            visible: text !== ""
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.focusOmatunes()
-                            }
-                        }
-
-                        // Heart Button: Red (#e67e80 / urgent) when liked, muted when unliked
-                        Text {
-                            text: "" // nf-fa-heart
-                            color: root.isLiked ? "#e67e80" : (likeArea.containsMouse ? Color.accent : Color.muted)
-                            font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                            font.pixelSize: 20
-                            visible: root.activePlayer !== null
-
-                            MouseArea {
-                                id: likeArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.runCmd("python3 -c \"import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.sendto(b'like',('127.0.0.1',18888))\"");
-                                    root.isLiked = !root.isLiked;
-                                }
-                            }
-                        }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: {
-                            if (!root.activePlayer) return "";
-                            var a = root.artistName;
-                            var alb = root.activePlayer.trackAlbum || "";
-                            if (a && alb) return a + " — " + alb;
-                            if (a) return a;
-                            if (alb) return alb;
-                            return "";
-                        }
-                        color: Color.muted
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: Style.font.body
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignHCenter
-                        visible: text !== ""
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.focusOmatunes()
-                        }
-                    }
-                }
-
-
-
-                // Transport Controls: [Shuffle] [Prev] [Play/Pause] [Next] [Repeat]
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: 20
-
-                    // Shuffle Button (\uf074 - nf-fa-random) with Active Highlight Color
-                    Text {
-                        text: ""
-                        color: root.isShuffleOn ? Color.accent : (shuffleArea.containsMouse ? Color.accent : Color.muted)
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 20
-
-                        MouseArea {
-                            id: shuffleArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.activePlayer && root.activePlayer.shuffle !== undefined) root.activePlayer.shuffle = !root.isShuffleOn;
-                                else root.runCmd("playerctl --player=omatunes shuffle toggle");
-                                root.isShuffleOn = !root.isShuffleOn;
-                            }
-                        }
-                    }
-
-                    // Previous Button (\uf048 - nf-fa-backward)
-                    Text {
-                        text: ""
-                        color: prevArea.containsMouse ? Color.accent : Color.foreground
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 24
-
-                        MouseArea {
-                            id: prevArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.activePlayer) root.activePlayer.previous();
-                                else root.runCmd("playerctl --player=omatunes previous");
-                            }
-                        }
-                    }
-
-                    // Play/Pause Button (\uf04b / \uf04c)
-                    Rectangle {
-                        implicitWidth: 44
-                        implicitHeight: 44
-                        radius: 22
-                        color: playArea.containsMouse ? Color.accent : Color.foreground
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: (root.activePlayer && root.activePlayer.playbackState === MprisPlaybackState.Playing) ? "" : ""
-                            color: Color.background
-                            font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                            font.pixelSize: 20
-                        }
-
-                        MouseArea {
-                            id: playArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.activePlayer && root.activePlayer.togglePlaying) {
-                                    root.activePlayer.togglePlaying();
-                                } else {
-                                    root.runCmd("playerctl --player=omatunes play-pause");
-                                }
-                            }
-                        }
-                    }
-
-                    // Next Button (\uf051 - nf-fa-forward)
-                    Text {
-                        text: ""
-                        color: nextArea.containsMouse ? Color.accent : Color.foreground
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 24
-
-                        MouseArea {
-                            id: nextArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (root.activePlayer) root.activePlayer.next();
-                                else root.runCmd("playerctl --player=omatunes next");
-                            }
-                        }
-                    }
-
-                    // Repeat Button (\uf021 - nf-fa-repeat) with Active Highlight Color
-                    Text {
-                        text: ""
-                        color: root.isRepeatOn ? Color.accent : (repeatArea.containsMouse ? Color.accent : Color.muted)
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 20
-
-                        MouseArea {
-                            id: repeatArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.isRepeatOn = !root.isRepeatOn;
-                                root.runCmd("playerctl --player=omatunes loop " + (root.isRepeatOn ? "Playlist" : "None"));
-                            }
-                        }
-                    }
-                }
-
-                // Volume Bar (Clicking + Smooth Dragging)
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    Text {
-                        text: "" // nf-fa-volume_up
-                        color: Color.muted
-                        font.family: root.bar ? root.bar.fontFamily : "sans-serif"
-                        font.pixelSize: 16
-                    }
-
-                    Rectangle {
-                        id: volumeBg
-                        Layout.fillWidth: true
-                        implicitHeight: 8
-                        radius: 4
-                        color: Color.background
-
-                        Rectangle {
-                            height: parent.height
-                            width: {
-                                var vol = (root.activePlayer && root.activePlayer.volume !== undefined) ? root.activePlayer.volume : 1.0;
-                                return Math.min(parent.width, Math.max(0, parent.width * vol));
-                            }
-                            radius: 4
-                            color: Color.accent
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-
-                            function setVolume(mouseX) {
-                                var newVol = Math.min(1.0, Math.max(0.0, mouseX / width));
-                                if (root.activePlayer) root.activePlayer.volume = newVol;
-                                root.runCmd("playerctl --player=omatunes volume " + newVol.toFixed(2));
-                            }
-
-                            onClicked: function(mouse) { setVolume(mouse.x); }
-                            onPositionChanged: function(mouse) { if (pressed) setVolume(mouse.x); }
-                        }
-                    }
-                }
-            }
-        }
+    // -------------------------------------------------------------- label
+    Text {
+      id: labelText
+      anchors.verticalCenter: parent.verticalCenter
+      width: root.labelWidth
+      textFormat: Text.PlainText
+      text: root.label
+      color: root.barForeground
+      opacity: root.online ? 1 : 0.55
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+      elide: Text.ElideRight
+      maximumLineCount: 1
     }
 
-    function formatTime(seconds) {
-        if (!seconds || seconds <= 0 || isNaN(seconds)) return "0:00";
-        var mins = Math.floor(seconds / 60);
-        var secs = Math.floor(seconds % 60);
-        return mins + ":" + (secs < 10 ? "0" : "") + secs;
+    // ------------------------------------------------------------- control
+    Item {
+      id: controlFrame
+      width: root.controlSize
+      height: root.controlSize
+      anchors.verticalCenter: parent.verticalCenter
+
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: controlArea.containsMouse ? root.withAlpha(root.barForeground, 0.12) : "transparent"
+        Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+      }
+
+      Text {
+        anchors.centerIn: parent
+        text: root.statusGlyph
+        color: root.barForeground
+        font.family: root.fontFamily
+        font.pixelSize: Math.round(Style.font.body * 0.95)
+      }
+
+      MouseArea {
+        id: controlArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        // One control, two meanings: transport when the app is up, a hidden
+        // start when it is not.
+        onClicked: root.service.toggleOrLaunch()
+      }
     }
+  }
+
+  // A hairline of elapsed time along the bottom of the pill. Two pixels is
+  // enough to read the song moving without turning the bar into a dashboard.
+  Rectangle {
+    id: progressLine
+    x: root.padX
+    y: root.height - height - Math.max(1, Math.round(Style.space(2)))
+    height: Math.max(1, Math.round(Style.space(2)))
+    width: Math.max(0, (root.pillWidth - root.padX * 2) * root.progress)
+    radius: height / 2
+    color: root.accent
+    opacity: root.online && root.service.length > 0 ? 0.75 : 0
+  }
+
+  function withAlpha(value, alpha) {
+    return Colors.withAlpha(value, alpha)
+  }
+
+  PlayerPopup {
+    id: popup
+    anchorItem: root
+    bar: root.bar
+    owner: root
+    open: root.popupOpen
+    state: root.service
+    theme: root.theme
+    motionEnabled: root.bar ? root.bar.animationsEnabled !== false : true
+  }
 }

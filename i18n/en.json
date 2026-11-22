@@ -1,0 +1,11 @@
+{
+  "popup.untitled": "Untitled",
+  "popup.offlineTitle": "Omatunes is offline",
+  "popup.offlineHint": "Open Omatunes to listen.",
+  "popup.repeat": "Repeat",
+  "popup.repeatOff": "Off",
+  "popup.repeatQueue": "Queue",
+  "popup.repeatTrack": "Track",
+  "popup.equalizer": "Equalizer",
+  "popup.equalizerUnavailable": "The equalizer needs a newer Omatunes build."
+}

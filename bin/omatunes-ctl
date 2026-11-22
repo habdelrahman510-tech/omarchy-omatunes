@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Send one control message to a running Omatunes player.
+
+Omatunes listens on a plain-text UDP socket at 127.0.0.1:18888. This helper is
+the plugin's only way to reach the verbs MPRIS does not carry: like, shuffle,
+absolute repeat mode, and the real equalizer state.
+
+It is deliberately argument-validated: every message is chosen from a fixed
+vocabulary, and the one free-form value (an equalizer preset name) must match a
+strict allowlist pattern. Nothing user-controlled from track metadata ever
+reaches the socket.
+"""
+
+import re
+import socket
+import sys
+
+HOST = "127.0.0.1"
+PORT = 18888
+
+PRESET_NAME = re.compile(r"^[A-Za-z0-9 +/&'-]{1,40}$")
+REPEAT_MODES = ("off", "queue", "track")
+
+USAGE = (
+    "usage: omatunes-ctl {play-pause|next|prev|like|shuffle|repeat|show}\n"
+    "       omatunes-ctl seek <seconds>\n"
+    "       omatunes-ctl repeat {off|queue|track}\n"
+    "       omatunes-ctl eq {on|off}\n"
+    "       omatunes-ctl eq-preset <preset name>"
+)
+
+
+def fail(message, code=2):
+    print(message, file=sys.stderr)
+    return code
+
+
+def send(message):
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.settimeout(1.0)
+        sock.sendto(message.encode("utf-8"), (HOST, PORT))
+
+
+def main(argv):
+    if len(argv) == 2:
+        verb = argv[1]
+        if verb in ("play-pause", "next", "prev", "like", "shuffle", "repeat", "show"):
+            send(verb)
+            return 0
+
+    if len(argv) == 3:
+        verb, value = argv[1], argv[2]
+
+        if verb == "seek":
+            try:
+                seconds = float(value)
+            except ValueError:
+                return fail("seek expects a number of seconds")
+            if seconds < 0:
+                return fail("seek expects a non-negative number of seconds")
+            send("seek %.3f" % seconds)
+            return 0
+
+        if verb == "repeat":
+            if value not in REPEAT_MODES:
+                return fail("repeat expects one of: " + ", ".join(REPEAT_MODES))
+            send("repeat " + value)
+            return 0
+
+        if verb == "eq":
+            if value not in ("on", "off"):
+                return fail("eq expects on or off")
+            send("eq " + value)
+            return 0
+
+        if verb == "eq-preset":
+            if not PRESET_NAME.match(value):
+                return fail("eq-preset expects a preset name the app advertised")
+            send("eq preset " + value)
+            return 0
+
+    return fail(USAGE)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

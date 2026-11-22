@@ -1,0 +1,2 @@
+singleton OmatunesService 1.0 OmatunesService.qml
+singleton ThemeAdapter 1.0 ThemeAdapter.qml
