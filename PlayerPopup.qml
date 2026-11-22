@@ -494,7 +494,10 @@ KeyboardPanel {
 
       HoverHandler { cursorShape: Qt.PointingHandCursor }
       TapHandler {
-        onTapped: popup.state.togglePlaying()
+        // Same contract as the pill's control: transport when the player is
+        // live, a hidden start when it is not. togglePlaying() alone is a
+        // no-op while Omatunes is offline, which left this button dead.
+        onTapped: popup.state.toggleOrLaunch()
       }
     }
 
