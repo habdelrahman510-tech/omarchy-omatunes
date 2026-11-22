@@ -87,6 +87,20 @@ KeyboardPanel {
       : desired
   }
 
+  // The card's target height jumps, while the panel animates its own drawn
+  // height toward it. Mirror that 200ms curve on the backdrop alone: the
+  // blurred artwork then stretches with the card as the menu opens and closes
+  // instead of snapping to the final crop on the first frame.
+  property real backdropHeight: popup.contentHeight
+  Behavior on backdropHeight {
+    enabled: popup.motionEnabled
+    NumberAnimation {
+      duration: Style.duration(200)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
   // One value drives the menu's fade and slide, on the panel's own timeline.
   property real menuProgress: popup.menuOpen ? 1 : 0
   Behavior on menuProgress {
@@ -170,7 +184,14 @@ KeyboardPanel {
 
   Rectangle {
     id: backdropClip
-    anchors.fill: parent
+    anchors {
+      top: parent.top
+      left: parent.left
+      right: parent.right
+    }
+    // Not anchors.fill: the holder's height jumps to the menu's target, but
+    // the art backdrop has to grow with the card's own 200ms height tween.
+    height: popup.backdropHeight
     radius: popup.radius
     color: popup.surface
     clip: true
