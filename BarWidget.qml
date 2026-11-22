@@ -36,15 +36,15 @@ BarWidget {
   // The whole point of the fixed width: every track — a one-word title or a
   // 60-character one — lands in the same box. The label owns whatever is left
   // after the disc, the control and the gaps, and elides there.
-  // Compact footprint: the pill lives in a row of ~26px icon widgets, so it
-  // has to read as one compact control, not a banner. At 168px it still has
-  // room for the disc, a short elided label and the play control, with the
-  // progress hairline running the inner width.
-  readonly property real pillWidth: Style.space(168)
-  readonly property real padX: Style.space(7)
-  readonly property real artSize: Style.space(18)
-  readonly property real controlSize: Style.space(16)
-  readonly property real gap: Style.space(5)
+  readonly property real pillWidth: Style.space(238)
+  readonly property real padX: Style.space(9)
+  readonly property real artSize: Style.space(20)
+  readonly property real controlSize: Style.space(18)
+  readonly property real gap: Style.space(6)
+  // The shell's own workspaces pill is inset inside the bar, not flush with
+  // it: barSize - 6, centred with an equal margin above and below. Our
+  // capsule used to fill the whole bar and stood proud of every neighbour.
+  readonly property int pillThickness: Math.max(16, barSize - Style.space(6))
   readonly property real labelWidth: Math.max(0, pillWidth - padX * 2 - artSize - controlSize - gap * 2)
 
   readonly property bool online: root.service.available
@@ -77,7 +77,10 @@ BarWidget {
   // playing each get a slightly different tint — the same language the
   // workspaces pill uses.
   Rectangle {
-    anchors.fill: parent
+    anchors.horizontalCenter: parent.horizontalCenter
+    anchors.verticalCenter: parent.verticalCenter
+    width: parent.width
+    height: root.pillThickness
     radius: height / 2
     color: root.withAlpha(root.barForeground, bodyArea.containsMouse ? 0.12 : 0.06)
     Behavior on color { ColorAnimation { duration: Style.duration(120) } }
@@ -240,7 +243,8 @@ BarWidget {
   Rectangle {
     id: progressLine
     x: root.padX
-    y: root.height - height - Math.max(1, Math.round(Style.space(2)))
+    // Sit on the bottom edge of the inset capsule, not the bottom of the bar.
+    y: (root.height + root.pillThickness) / 2 - height
     height: Math.max(1, Math.round(Style.space(2)))
     width: Math.max(0, (root.pillWidth - root.padX * 2) * root.progress)
     radius: height / 2
