@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -63,6 +64,15 @@ BarWidget {
   readonly property string glyphHeart: "\uF004"
 
   property bool popupOpen: false
+
+  // The shell's panel hotkey path finds bar widgets by these three members.
+  // Without open()/opened, `omarchy-shell shell summon omatunes` silently
+  // skips the pill, so a shortcut cannot raise the card while the bar is away.
+  readonly property bool opened: root.popupOpen
+
+  function open() {
+    root.popupOpen = true
+  }
 
   function close() {
     root.popupOpen = false
@@ -152,37 +162,63 @@ BarWidget {
       height: root.artSize
       anchors.verticalCenter: parent.verticalCenter
 
+      // The resting disc is a real circle, so even before artwork decodes the
+      // pill never shows a square corner.
       Rectangle {
         id: disc
         anchors.fill: parent
-        // A half-circle, not a square: the album art reads as a disc in the bar
-        // instead of a second little card next to the label.
         radius: width / 2
         color: root.bar && root.bar.hoverBackground !== undefined
           ? root.bar.hoverBackground : Commons.Color.popups.background
-        clip: true
+      }
 
-        Image {
+      Image {
+        id: cover
+        anchors.fill: parent
+        visible: false
+        asynchronous: true
+        cache: true
+        smooth: true
+        fillMode: Image.PreserveAspectCrop
+        source: root.online && root.service.artUrl !== "" ? root.service.artUrl : ""
+        sourceSize.width: 40
+        sourceSize.height: 40
+      }
+
+      // Qt clips a rounded Rectangle to its bounding box, not to the radius —
+      // the old `clip: true` left the artwork square. Mask it through the
+      // shell's own pattern instead: an invisible circular item as alpha mask.
+      Item {
+        id: discMask
+        anchors.fill: parent
+        visible: false
+        layer.enabled: true
+
+        Rectangle {
           anchors.fill: parent
-          asynchronous: true
-          cache: true
-          smooth: true
-          fillMode: Image.PreserveAspectCrop
-          source: root.online && root.service.artUrl !== "" ? root.service.artUrl : ""
-          sourceSize.width: 40
-          sourceSize.height: 40
-          visible: status === Image.Ready
+          radius: width / 2
+          color: "black"
         }
+      }
 
-        Text {
-          anchors.centerIn: parent
-          visible: !(root.online && root.service.artUrl)
-          text: "\uF001"
-          color: root.barForeground
-          opacity: root.online ? 1 : 0.4
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
+      MultiEffect {
+        anchors.fill: parent
+        visible: cover.status === Image.Ready
+        source: cover
+        maskEnabled: true
+        maskSource: discMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
+
+      Text {
+        anchors.centerIn: parent
+        visible: cover.status !== Image.Ready
+        text: "\uF001"
+        color: root.barForeground
+        opacity: root.online ? 1 : 0.4
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
       }
 
       // A quiet ring that only lights while something is actually playing.

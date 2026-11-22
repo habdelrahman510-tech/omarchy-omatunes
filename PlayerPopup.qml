@@ -73,28 +73,29 @@ KeyboardPanel {
       : byWidth
     return popup.fittedContentWidth(Math.min(byWidth, byHeight))
   }
-  // The panel already animates its own drawnHeight toward contentHeight with
-  // a 200ms ease-out. Stacking our old 240ms overshooting bezier on top of it
-  // gave two height curves fighting each other, which read as choppy. Let the
-  // panel own the height; the menu gets one matching fade/slide of its own.
   contentHeight: {
-    var base = Math.round(popup.contentWidth * popup.designHeight / popup.designWidth)
+    // The utility menu needs room a compact card does not otherwise have, so
+    // the card grows downward to hold it and shrinks back when it closes — the
+    // panel animates that height change, so it reads as a stretch, not a jump.
     var desired = popup.menuOpen
       ? Math.round(popup.menuTop + (menu ? menu.height : 0) + popup.unit * 10)
-      : base
+      : Math.round(popup.contentWidth * popup.designHeight / popup.designWidth)
     return popup.availableCardHeight > 0
       ? Math.min(desired, Math.round(popup.availableCardHeight))
       : desired
   }
 
-  // One value drives the menu's fade and slide, on the panel's own timeline.
-  property real menuProgress: popup.menuOpen ? 1 : 0
-  Behavior on menuProgress {
+  // A height change alone does not always commit a frame in this panel: the
+  // closing menu could hide and shrink while the surface kept showing the old
+  // frame until something else forced a repaint. Animating the height commits a
+  // frame per step, which repaints the vacated band, and reads as the stretch
+  // the card is supposed to do.
+  Behavior on contentHeight {
     enabled: popup.motionEnabled
     NumberAnimation {
-      duration: Style.duration(200)
+      duration: popup.motionDuration
       easing.type: Easing.Bezier
-      easing.bezierCurve: Style.easeOut
+      easing.bezierCurve: popup.motionBezier
     }
   }
 
@@ -208,59 +209,88 @@ KeyboardPanel {
       scale: popup.unit
 
     // ----------------------------------------------------------- artwork
+    // A disc, not a tile. The old 308px rounded square swallowed most of the
+    // card and its radius never actually clipped the image; 224px centered in
+    // the left column reads as album art without bloating the popup.
     Item {
       id: artwork
-      x: 30
-      y: 30
-      width: 308
-      height: 308
+      x: 57
+      y: 74
+      width: 224
+      height: 224
 
       Rectangle {
         anchors.fill: parent
-        radius: 10
+        radius: width / 2
         color: popup.withAlpha(popup.ink, 0.06)
         border.width: 2
         border.color: popup.withAlpha(popup.ink, popup.online ? 0.85 : 0.35)
+      }
 
-        Image {
-          id: cover
-          anchors.fill: parent
-          anchors.margins: 2
-          asynchronous: true
-          cache: true
-          smooth: true
-          fillMode: Image.PreserveAspectCrop
-          source: popup.hasArt ? popup.state.artUrl : ""
-          sourceSize.width: 616
-          visible: status === Image.Ready
-        }
+      Image {
+        id: cover
+        anchors.fill: parent
+        anchors.margins: 2
+        visible: false
+        asynchronous: true
+        cache: true
+        smooth: true
+        fillMode: Image.PreserveAspectCrop
+        source: popup.hasArt ? popup.state.artUrl : ""
+        sourceSize.width: 448
+        sourceSize.height: 448
+      }
 
-        Text {
-          anchors.centerIn: parent
-          visible: cover.status !== Image.Ready
-          text: "\uF001"
-          color: popup.inkFaint
-          font.family: popup.fontFamily
-          font.pixelSize: 44
-        }
+      // The Rectangle's radius only rounds its own paint; masking the decoded
+      // image through an alpha item is what actually makes the art a circle.
+      Item {
+        id: discMask
+        anchors.fill: cover
+        visible: false
+        layer.enabled: true
 
-        // Hover feedback only: the artwork is the Omatunes launch surface.
         Rectangle {
           anchors.fill: parent
-          radius: 10
-          color: popup.withAlpha(popup.ink, 0.08)
-          opacity: artworkHover.hovered ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+          radius: width / 2
+          color: "black"
         }
+      }
 
-        HoverHandler {
-          id: artworkHover
-          cursorShape: Qt.PointingHandCursor
-        }
+      MultiEffect {
+        anchors.fill: cover
+        visible: cover.status === Image.Ready
+        source: cover
+        maskEnabled: true
+        maskSource: discMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
 
-        TapHandler {
-          onTapped: popup.state.showApp()
-        }
+      Text {
+        anchors.centerIn: parent
+        visible: cover.status !== Image.Ready
+        text: "\uF001"
+        color: popup.inkFaint
+        font.family: popup.fontFamily
+        font.pixelSize: 44
+      }
+
+      // Hover feedback only: the artwork is the Omatunes launch surface.
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: popup.withAlpha(popup.ink, 0.08)
+        opacity: artworkHover.hovered ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+      }
+
+      HoverHandler {
+        id: artworkHover
+        cursorShape: Qt.PointingHandCursor
+      }
+
+      TapHandler {
+        onTapped: popup.state.showApp()
       }
     }
 
@@ -583,7 +613,7 @@ KeyboardPanel {
   Item {
     id: outsideCatcher
     anchors.fill: parent
-    visible: popup.menuProgress > 0.001
+    visible: popup.menuOpen
     z: 10
     TapHandler {
       onTapped: popup.menuOpen = false
@@ -592,17 +622,15 @@ KeyboardPanel {
 
   BorderSurface {
     id: menu
-    visible: popup.menuProgress > 0.001
-    opacity: popup.menuProgress
+    visible: popup.menuOpen
     z: 11
 
     // Sits under the transport row, in the room the card grows for it while it
-    // is open. Slides the last few pixels into place as it fades, so the card
-    // growing underneath and the menu arriving read as one motion.
+    // is open. Nothing above it is covered.
     width: Math.round(Math.min(popup.contentWidth - 16, popup.unit * 356))
     height: menuColumn.implicitHeight + menu.padding * 2
     x: Math.round(Math.max(8, Math.min(popup.contentWidth - width - 8, popup.unit * 388)))
-    y: Math.round(popup.menuTop - (1 - popup.menuProgress) * popup.unit * 10)
+    y: Math.round(popup.menuTop)
     padding: Math.round(popup.unit * 10)
     radius: Math.max(4, popup.radius)
     color: popup.surface

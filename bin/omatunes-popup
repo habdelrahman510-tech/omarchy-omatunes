@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Raise the Omatunes card from a keybinding.
+#
+# The card is a KeyboardPanel anchored to the pill, so with the bar parked
+# off-screen by `omarchy toggle bar off` it would open off-screen too. Bring the
+# bar back first, give it a frame to return to its slot, then ask the shell to
+# summon this plugin's bar widget.
+set -u
+
+flag="$HOME/.local/state/omarchy/toggles/bar-off"
+if [[ -f "$flag" ]]; then
+  # `bar off` removes the bar-off flag; `bar on` would hide it again.
+  omarchy toggle bar off >/dev/null 2>&1
+  sleep 0.15
+fi
+
+exec omarchy-shell shell toggle omatunes
