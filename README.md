@@ -20,6 +20,20 @@ omarchy plugin update omatunes --yes
 The plugin installs as `omatunes`, requires nothing besides Omatunes 2.1 or newer for the full
 feature set, and lands in `center` unless your `shell.json` says otherwise.
 
+### Keeping a local checkout permanent
+
+`omarchy plugin update` replaces the installed plugin, and `pacman -Syu` can replace the patched
+player with an older packaged build. From this checkout, one command restores the whole setup —
+plugin sync, `Super + Alt + O` binding, patched player in `/usr/local/bin`, reload and verification:
+
+```bash
+./scripts/make-permanent.sh
+```
+
+It is idempotent, safe to re-run after any update, and asks for privileges through `pkexec` only
+when rebuilding the player. Set `OMATUNES_APP_REPO` if the player checkout is not at
+`~/Projects/omatunes`.
+
 ## What you get
 
 **In the bar** — a standalone pill of a fixed width: a 20px round artwork tile, `Artist — Title`
