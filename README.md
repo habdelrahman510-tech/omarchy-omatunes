@@ -80,7 +80,7 @@ appears and disappears, with no travel and no fade.
 | Popup, transport | Previous / play-pause / next / shuffle |
 | Popup, three bars | Repeat mode and equalizer |
 | `Escape` / click outside | Close the panel, then the popup |
-| `Super + Alt + M` | Open the companion from anywhere; brings the bar back first if it is hidden |
+| `Super + Alt + O` | Open the companion from anywhere; brings the bar back first if it is hidden |
 
 Volume is deliberately not in the popup. Omatunes owns its own volume; use the application, or your
 desktop's mixer, rather than a second control surface that can disagree with it.
