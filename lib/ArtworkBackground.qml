@@ -27,22 +27,31 @@ Item {
   property int front: 0
   readonly property var slots: [slotA, slotB]
 
-  function load() {
+  // Resolve the visible slot for the current URL. This has to look at *both*
+  // slots, not just the idle one: a URL can flip back to one the idle slot is
+  // already holding (A -> B -> A), and in that case assigning no new source
+  // means no status change fires, so nothing would ever promote it and the
+  // previous track's art would stay on screen. Checking first also avoids a
+  // needless reload when the front already shows the right image.
+  function sync() {
     if (!root.url) return
-    var back = root.slots[1 - root.front]
-    if (String(back.source) === root.url) return
-    back.source = root.url
+
+    var current = root.slots[root.front]
+    if (current.status === Image.Ready && String(current.source) === root.url)
+      return
+
+    var backIndex = 1 - root.front
+    var back = root.slots[backIndex]
+    if (back.status === Image.Ready && String(back.source) === root.url) {
+      root.front = backIndex
+      return
+    }
+    if (String(back.source) !== root.url)
+      back.source = root.url
   }
 
-  function consider(slot, index) {
-    if (index === root.front) return
-    if (slot.status !== Image.Ready) return
-    if (String(slot.source) !== root.url) return
-    root.front = index
-  }
-
-  onUrlChanged: root.load()
-  Component.onCompleted: root.load()
+  onUrlChanged: root.sync()
+  Component.onCompleted: root.sync()
 
   Item {
     id: art
@@ -60,7 +69,7 @@ Item {
       sourceSize.width: 320
       sourceSize.height: 320
       opacity: root.front === 0 ? 1 : 0
-      onStatusChanged: root.consider(slotA, 0)
+      onStatusChanged: root.sync()
 
       Behavior on opacity {
         enabled: root.animate
@@ -78,7 +87,7 @@ Item {
       sourceSize.width: 320
       sourceSize.height: 320
       opacity: root.front === 1 ? 1 : 0
-      onStatusChanged: root.consider(slotB, 1)
+      onStatusChanged: root.sync()
 
       Behavior on opacity {
         enabled: root.animate
