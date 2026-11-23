@@ -535,6 +535,36 @@ KeyboardPanel {
       property real previewValue: 0
       readonly property real previewFraction: dragging ? previewValue : fraction
 
+      // The authoritative clock is sampled five times a second. Keep a
+      // sub-pixel, linearly eased copy so the fill and handle glide between
+      // samples instead of snapping. Rounding their geometry to whole pixels
+      // was the stutter: a 350s track on this 496px bar advances 0.28px per
+      // tick, which rounded to zero most ticks and then hopped a whole pixel.
+      // While dragging, the copy follows the finger instantly — easing a drag
+      // would make the handle trail the pointer.
+      property real shownFraction: previewFraction
+      Behavior on shownFraction {
+        id: smoothBehavior
+        enabled: popup.motionEnabled && !timeline.dragging
+        NumberAnimation { duration: 200; easing.type: Easing.Linear }
+      }
+
+      // A new track starts at zero. Snap there the moment the track identity
+      // changes, before the next clock sample arrives, so the bar never slides
+      // backwards through the previous track's position.
+      Connections {
+        target: popup.state
+        function onUniqueIdChanged() {
+          smoothBehavior.enabled = false
+          timeline.shownFraction = 0
+          // The assignment above destroys the binding; put it straight back,
+          // or the bar would freeze at zero on every track change.
+          timeline.shownFraction = Qt.binding(function() { return timeline.previewFraction })
+          smoothBehavior.enabled = popup.motionEnabled && !timeline.dragging
+        }
+      }
+
+
       Rectangle {
         y: 6
         width: parent.width
@@ -544,13 +574,13 @@ KeyboardPanel {
 
       Rectangle {
         y: 6
-        width: Math.round(parent.width * timeline.previewFraction)
+        width: parent.width * timeline.shownFraction
         height: 2
         color: popup.withAlpha(popup.ink, timeline.interactive ? 1 : 0.5)
       }
 
       Rectangle {
-        x: Math.round(parent.width * timeline.previewFraction) - 7.5
+        x: parent.width * timeline.shownFraction - 7.5
         y: 0
         width: 15
         height: 15

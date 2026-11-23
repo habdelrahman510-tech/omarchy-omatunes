@@ -61,6 +61,26 @@ BarWidget {
     ? Math.max(0, Math.min(1, root.service.position / root.service.length))
     : 0
 
+  // The MPRIS clock is sampled five times a second. Glide between samples so
+  // the hairline creeps forward instead of stepping once per tick.
+  property real shownProgress: root.progress
+  Behavior on shownProgress {
+    id: progressBehavior
+    NumberAnimation { duration: 200; easing.type: Easing.Linear }
+  }
+
+  // A new track starts at zero; snap there on the identity change instead of
+  // sliding the hairline backwards through the old track's position.
+  Connections {
+    target: root.service
+    function onUniqueIdChanged() {
+      progressBehavior.enabled = false
+      root.shownProgress = 0
+      root.shownProgress = Qt.binding(function() { return root.progress })
+      progressBehavior.enabled = true
+    }
+  }
+
   readonly property string glyphHeart: "\uF004"
 
   property bool popupOpen: false
@@ -294,7 +314,7 @@ BarWidget {
     // Sit on the bottom edge of the inset capsule, not the bottom of the bar.
     y: (root.height + root.pillThickness) / 2 - height
     height: Math.max(1, Math.round(Style.space(2)))
-    width: Math.max(0, (root.pillWidth - root.padX * 2) * root.progress)
+    width: Math.max(0, (root.pillWidth - root.padX * 2) * root.shownProgress)
     radius: height / 2
     color: root.accent
     opacity: root.online && root.service.length > 0 ? 0.75 : 0
