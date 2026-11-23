@@ -186,6 +186,23 @@ KeyboardPanel {
     }
   }
 
+  // Qt's Rectangle.clip is rectangular even when the Rectangle has a radius.
+  // The backdrop and the pointer light therefore need a real alpha mask to
+  // follow the card's curve; this one black rounded rectangle is shared by
+  // both and costs one small layer each, with no blur.
+  Item {
+    id: cornerMask
+    anchors.fill: parent
+    visible: false
+    layer.enabled: true
+
+    Rectangle {
+      anchors.fill: parent
+      radius: popup.radius
+      color: "black"
+    }
+  }
+
   // -------------------------------------------------------------- backdrop
   //
   // One image, cropped to cover, blurred once and held until the next artwork
@@ -205,6 +222,14 @@ KeyboardPanel {
     radius: popup.radius
     color: popup.surface
     clip: true
+
+    layer.enabled: true
+    layer.effect: MultiEffect {
+      maskEnabled: true
+      maskSource: cornerMask
+      maskThresholdMin: 0.5
+      maskSpreadAtMin: 1.0
+    }
 
     Lib.ArtworkBackground {
       anchors.fill: parent
@@ -230,6 +255,14 @@ KeyboardPanel {
     anchors.fill: parent
     color: "transparent"
     clip: true
+
+    layer.enabled: true
+    layer.effect: MultiEffect {
+      maskEnabled: true
+      maskSource: cornerMask
+      maskThresholdMin: 0.5
+      maskSpreadAtMin: 1.0
+    }
 
     HoverHandler {
       id: cardPointer
