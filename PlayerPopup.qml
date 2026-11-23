@@ -526,7 +526,14 @@ KeyboardPanel {
       readonly property real fraction: popup.progress
       readonly property bool interactive: popup.online && popup.state.canSeek && popup.hasTimeline
       property bool dragging: false
-      property real previewFraction: popup.progress
+
+      // While dragging, the bar follows previewValue; otherwise it follows the
+      // authoritative clock. Bind the *selector*, never the value itself: an
+      // assignment to previewFraction would destroy its binding to the clock
+      // for good, leaving the bar frozen after the first scrub and showing the
+      // previous track's position on every later track change.
+      property real previewValue: 0
+      readonly property real previewFraction: dragging ? previewValue : fraction
 
       Rectangle {
         y: 6
@@ -564,19 +571,18 @@ KeyboardPanel {
         enabled: timeline.interactive
         onActiveChanged: {
           if (scrub.active) {
+            timeline.previewValue = timeline.fraction
             timeline.dragging = true
-            timeline.previewFraction = timeline.fraction
             popup.seekTrackId = popup.state.uniqueId
           } else if (timeline.dragging) {
             timeline.dragging = false
-            popup.state.seekTo(timeline.previewFraction * popup.state.length, popup.seekTrackId)
-            timeline.previewFraction = popup.progress
+            popup.state.seekTo(timeline.previewValue * popup.state.length, popup.seekTrackId)
           }
         }
         onCentroidChanged: {
           if (!scrub.active || !timeline.interactive) return
           var point = timeline.mapFromItem(null, scrub.centroid.scenePosition.x, scrub.centroid.scenePosition.y)
-          timeline.previewFraction = Math.max(0, Math.min(1, point.x / timeline.width))
+          timeline.previewValue = Math.max(0, Math.min(1, point.x / timeline.width))
         }
       }
 
