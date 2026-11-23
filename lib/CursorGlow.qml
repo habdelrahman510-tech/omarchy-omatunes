@@ -1,50 +1,27 @@
 import QtQuick
-import QtQuick.Effects
 
-// A soft light that follows the pointer.
+// A pre-rendered radial light.
 //
-// One small, low-alpha disc is blurred into a texture the size of this item,
-// so the falloff is radial without a shader and without stretching the source.
-// The light is neutral by design: it lifts luminance instead of adding hue,
-// which means the artwork and type underneath keep their own colours. A mask
-// can be supplied when the glow has to stay inside a circular surface.
+// One 256px texture, one quad: following the pointer only changes x and y, so
+// there is no blur pass, shader or regenerated texture per frame. The PNG's
+// alpha reaches zero at its edge, so the falloff is smooth with no hard rim,
+// and it is white — it lifts luminance only, never adds hue.
 Item {
   id: root
 
-  property point center: Qt.point(-1000, -1000)
+  property point center: Qt.point(-10000, -10000)
   property real diameter: 240
-  property color light: "#ffffff"
   property real strength: 0.09
-  property real blurMultiplier: 1
-  property Item maskItem: null
 
-  Item {
-    id: field
-    anchors.fill: parent
-    visible: false
-
-    Rectangle {
-      x: root.center.x - root.diameter / 2
-      y: root.center.y - root.diameter / 2
-      width: root.diameter
-      height: root.diameter
-      radius: width / 2
-      color: root.light
-      opacity: root.strength
-    }
-  }
-
-  MultiEffect {
-    anchors.fill: parent
-    source: field
-    blurEnabled: true
-    blurMax: 64
-    blur: 1.0
-    blurMultiplier: root.blurMultiplier
-    maskEnabled: root.maskItem !== null
-    maskSource: root.maskItem
-    maskThresholdMin: 0.5
-    maskSpreadAtMin: 1.0
+  Image {
+    id: light
+    source: Qt.resolvedUrl("../assets/cursor-glow.png")
+    width: root.diameter
+    height: root.diameter
+    x: root.center.x - width / 2
+    y: root.center.y - height / 2
+    smooth: true
+    opacity: root.strength
     visible: root.strength > 0.001
   }
 }
