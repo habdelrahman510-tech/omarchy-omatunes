@@ -54,11 +54,15 @@ something is playing, for the hairline and the card's timeline.
 
 - the current artwork as the only background, cropped to cover and blurred once — no gradients, no
   palette extraction, no stacked glass panels;
-- a pointer-following light that treats the two surfaces differently: the card gets a stronger
-  neutral lift from a pre-rendered radial texture clipped to its bounds, while the artwork brightens
-  with its own pixels as the pointer approaches — no overlay texture is drawn over the sleeve, so
-  the record keeps its own colours and no stray light can spill across it;
-- the artwork itself as Omatunes' launch surface: click it to focus a running Omatunes or start it;
+- a square record sleeve with softly rounded corners and a contact shadow, holding the current
+  album cover;
+- a black vinyl record behind the sleeve, with pressed grooves, a low sheen and a warm label with a
+  spindle hole. On play it glides out to the right and spins; on pause it coasts down smoothly and
+  tucks back in. The artwork container reserves the record's travel, so it never reaches the text;
+- a pointer-following light that treats the two surfaces differently: the card gets a neutral lift
+  from a pre-rendered radial texture clipped to its bounds, while the sleeve brightens with its own
+  pixels as the pointer approaches — no overlay is drawn over the cover;
+- the sleeve itself as Omatunes' launch surface: click it to focus a running Omatunes or start it;
 - title and artist, with a seekable timeline that shows elapsed/total while you point at it;
 - previous, play/pause, next and shuffle, plus the three-bars control in the reference position.
   Shuffle is Omatunes' own switch, drawn solid while shuffling and as a ring while playing in order;

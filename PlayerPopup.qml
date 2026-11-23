@@ -264,93 +264,178 @@ KeyboardPanel {
       scale: popup.unit
 
     // ----------------------------------------------------------- artwork
-    // A disc, not a tile. The old 308px rounded square swallowed most of the
-    // card and its radius never actually clipped the image; 224px centered in
-    // the left column reads as album art without bloating the popup.
+    // A square sleeve in front, a vinyl record behind it. The container is
+    // wider than the sleeve so the record has room to travel: fully drawn it
+    // ends at design x 356, still clear of the text column at x 372.
     Item {
       id: artwork
-      x: 57
+      x: 32
       y: 74
-      width: 224
+      width: 324
       height: 224
 
-      // How close the pointer is to the sleeve, from 0 outside the disc to 1
-      // at its centre. The artwork reacts with its own pixels rather than an
-      // overlay, so it can never paint a white disc over the record.
+      readonly property real sleeveSize: 224
+      readonly property real recordSize: 216
+      readonly property real recordTuckedX: 8
+      readonly property real recordOutX: 108
+      readonly property bool spinning: popup.online && popup.state.isPlaying
+
+      // How close the pointer is to the sleeve itself, from 0 outside to 1 at
+      // its centre. The sleeve answers with its own pixels, never an overlay.
       property real glowProximity: {
         var p = artwork.mapFromItem(null, popup.glowScene.x, popup.glowScene.y)
-        var dx = p.x - artwork.width / 2
-        var dy = p.y - artwork.height / 2
-        return Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / (artwork.width / 2))
+        var dx = p.x - artwork.sleeveSize / 2
+        var dy = p.y - artwork.sleeveSize / 2
+        return Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / (artwork.sleeveSize / 2))
       }
 
-      Rectangle {
-        anchors.fill: parent
-        radius: width / 2
-        color: popup.withAlpha(popup.ink, 0.06)
-        border.width: 2
-        border.color: popup.withAlpha(popup.ink, popup.online ? 0.85 : 0.35)
-      }
-
-      Image {
-        id: cover
-        anchors.fill: parent
-        anchors.margins: 2
-        visible: false
-        asynchronous: true
-        cache: true
-        smooth: true
-        fillMode: Image.PreserveAspectCrop
-        source: popup.hasArt ? popup.state.artUrl : ""
-        sourceSize.width: 448
-        sourceSize.height: 448
-      }
-
-      // The Rectangle's radius only rounds its own paint; masking the decoded
-      // image through an alpha item is what actually makes the art a circle.
-      Item {
-        id: discMask
-        anchors.fill: cover
-        visible: false
-        layer.enabled: true
-
-        Rectangle {
-          anchors.fill: parent
-          radius: width / 2
-          color: "black"
+      // 0 = tucked behind the sleeve, 1 = slid out to the right. One eased
+      // value drives the record and the sleeve's little lift together.
+      property real slide: artwork.spinning ? 1 : 0
+      Behavior on slide {
+        enabled: popup.motionEnabled
+        NumberAnimation {
+          duration: Style.duration(620)
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
         }
       }
 
-      MultiEffect {
-        anchors.fill: cover
-        visible: cover.status === Image.Ready
-        source: cover
-        maskEnabled: true
-        maskSource: discMask
-        maskThresholdMin: 0.5
-        maskSpreadAtMin: 1.0
-        // The disc's own light: the sleeve is brightened with its own colours
-        // as the pointer approaches, instead of having a white texture drawn
-        // over it. The shader is already in use, so this costs nothing extra.
-        brightness: 0.22 * popup.glowFade * artwork.glowProximity
+      // An angular velocity rather than a running flag: on pause the target
+      // drops to zero and the platter coasts to a stop instead of freezing on
+      // whatever frame it happened to be on. dt comes from the clock so a
+      // busy frame cannot change the speed.
+      property real spinAngle: 0
+      property real spinVelocity: 0
+      property real lastTick: 0
+
+      Timer {
+        interval: 16
+        repeat: true
+        running: popup.open && popup.motionEnabled
+        onTriggered: {
+          var now = Date.now()
+          var dt = artwork.lastTick > 0 ? Math.min(0.05, (now - artwork.lastTick) / 1000) : 0.016
+          artwork.lastTick = now
+          var target = artwork.spinning ? 72 : 0
+          var gain = artwork.spinning ? 0.08 : 0.045
+          artwork.spinVelocity += (target - artwork.spinVelocity) * gain
+          if (!artwork.spinning && artwork.spinVelocity < 0.15) artwork.spinVelocity = 0
+          artwork.spinAngle = (artwork.spinAngle + artwork.spinVelocity * dt) % 360
+        }
+        onRunningChanged: { if (!running) artwork.lastTick = 0 }
       }
 
-      Text {
-        anchors.centerIn: parent
-        visible: cover.status !== Image.Ready
-        text: "\uF001"
-        color: popup.inkFaint
-        font.family: popup.fontFamily
-        font.pixelSize: 44
+      // The record sits behind the sleeve. Its texture is pre-rendered: this
+      // only moves and rotates one image, with no effect pass per frame.
+      Image {
+        z: 1
+        x: artwork.recordTuckedX + (artwork.recordOutX - artwork.recordTuckedX) * artwork.slide
+        y: (artwork.sleeveSize - artwork.recordSize) / 2
+        width: artwork.recordSize
+        height: artwork.recordSize
+        source: Qt.resolvedUrl("assets/vinyl.png")
+        smooth: true
+        rotation: artwork.spinAngle
+        transformOrigin: Item.Center
       }
 
-      HoverHandler {
-        id: artworkHover
-        cursorShape: Qt.PointingHandCursor
-      }
+      // The sleeve is the front surface — z 2 to the record's z 1.
+      Item {
+        id: sleeve
+        z: 2
+        width: artwork.sleeveSize
+        height: artwork.sleeveSize
+        transformOrigin: Item.Center
+        scale: artwork.spinning ? 1.02 : 1.0
+        Behavior on scale {
+          enabled: popup.motionEnabled
+          NumberAnimation {
+            duration: Style.duration(620)
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Style.easeOut
+          }
+        }
 
-      TapHandler {
-        onTapped: popup.state.showApp()
+        // A contact shadow, deepened while the sleeve is lifted.
+        Rectangle {
+          x: 3
+          y: 6
+          width: parent.width
+          height: parent.height
+          radius: 8
+          color: "#000000"
+          opacity: artwork.spinning ? 0.34 : 0.24
+          Behavior on opacity { NumberAnimation { duration: Style.duration(300) } }
+        }
+
+        Image {
+          id: cover
+          anchors.fill: parent
+          anchors.margins: 2
+          visible: false
+          asynchronous: true
+          cache: true
+          smooth: true
+          fillMode: Image.PreserveAspectCrop
+          source: popup.hasArt ? popup.state.artUrl : ""
+          sourceSize.width: 448
+          sourceSize.height: 448
+        }
+
+        // A rounded-square alpha mask, so the sleeve corner is truly cut and
+        // not just a rectangle whose radius paints over its own children.
+        Item {
+          id: sleeveMask
+          anchors.fill: cover
+          visible: false
+          layer.enabled: true
+
+          Rectangle {
+            anchors.fill: parent
+            radius: 8
+            color: "black"
+          }
+        }
+
+        MultiEffect {
+          anchors.fill: cover
+          visible: cover.status === Image.Ready
+          source: cover
+          maskEnabled: true
+          maskSource: sleeveMask
+          maskThresholdMin: 0.5
+          maskSpreadAtMin: 1.0
+          brightness: 0.22 * popup.glowFade * artwork.glowProximity
+        }
+
+        // A hairline edge keeps the sleeve reading as a object, not a tile
+        // pasted onto the backdrop.
+        Rectangle {
+          anchors.fill: parent
+          radius: 8
+          color: "transparent"
+          border.width: 1
+          border.color: popup.withAlpha(popup.ink, 0.16)
+        }
+
+        Text {
+          anchors.centerIn: parent
+          visible: cover.status !== Image.Ready
+          text: "\uF001"
+          color: popup.inkFaint
+          font.family: popup.fontFamily
+          font.pixelSize: 44
+        }
+
+        HoverHandler {
+          id: artworkHover
+          cursorShape: Qt.PointingHandCursor
+        }
+
+        TapHandler {
+          onTapped: popup.state.showApp()
+        }
       }
     }
 
