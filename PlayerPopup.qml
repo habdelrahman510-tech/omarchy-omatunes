@@ -33,6 +33,15 @@ KeyboardPanel {
   property bool menuOpen: false
   property int seekTrackId: -1
 
+  // One pointer position in design-space pixels, shared by the card and the
+  // disc so the light reads as a single source rather than two spotlights.
+  property point glowPoint: Qt.point(-1000, -1000)
+  property real glowFade: 0
+  Behavior on glowFade {
+    enabled: popup.motionEnabled
+    NumberAnimation { duration: Style.duration(160) }
+  }
+
   readonly property var strings: Commons.Translations {
     directory: Qt.resolvedUrl("i18n")
   }
@@ -228,6 +237,24 @@ KeyboardPanel {
       transformOrigin: Item.TopLeft
       scale: popup.unit
 
+      // Pointer events are mapped into this item's own coordinates, so the
+      // handler already reports design-space pixels — no conversion by the
+      // card's scale is needed. The light fades away with the pointer rather
+      // than freezing at its last position.
+      HoverHandler {
+        id: cardPointer
+        onHoveredChanged: popup.glowFade = hovered ? 1 : 0
+        onPointChanged: popup.glowPoint = point.position
+      }
+
+      Lib.CursorGlow {
+        anchors.fill: parent
+        center: popup.glowPoint
+        diameter: 200
+        light: "#ffffff"
+        strength: 0.10 * popup.glowFade
+      }
+
     // ----------------------------------------------------------- artwork
     // A disc, not a tile. The old 308px rounded square swallowed most of the
     // card and its radius never actually clipped the image; 224px centered in
@@ -295,13 +322,16 @@ KeyboardPanel {
         font.pixelSize: 44
       }
 
-      // Hover feedback only: the artwork is the Omatunes launch surface.
-      Rectangle {
+      // The same light continued over the sleeve. A soft, masked glow instead
+      // of a flat tint: hovering lifts the artwork without washing its colours
+      // out, and it tracks the pointer like the rest of the card.
+      Lib.CursorGlow {
         anchors.fill: parent
-        radius: width / 2
-        color: popup.withAlpha(popup.ink, 0.08)
-        opacity: artworkHover.hovered ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+        center: Qt.point(popup.glowPoint.x - artwork.x, popup.glowPoint.y - artwork.y)
+        diameter: 140
+        light: "#ffffff"
+        strength: 0.12 * popup.glowFade
+        maskItem: discMask
       }
 
       HoverHandler {

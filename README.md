@@ -54,6 +54,8 @@ something is playing, for the hairline and the card's timeline.
 
 - the current artwork as the only background, cropped to cover and blurred once — no gradients, no
   palette extraction, no stacked glass panels;
+- a soft, neutral light that follows the pointer across the card and the artwork disc alike: it
+  lifts luminance only, so the sleeve keeps its own colours instead of being washed out;
 - the artwork itself as Omatunes' launch surface: click it to focus a running Omatunes or start it;
 - title and artist, with a seekable timeline that shows elapsed/total while you point at it;
 - previous, play/pause, next and shuffle, plus the three-bars control in the reference position.
