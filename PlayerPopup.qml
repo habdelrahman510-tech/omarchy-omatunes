@@ -274,6 +274,16 @@ KeyboardPanel {
       width: 224
       height: 224
 
+      // How close the pointer is to the sleeve, from 0 outside the disc to 1
+      // at its centre. The artwork reacts with its own pixels rather than an
+      // overlay, so it can never paint a white disc over the record.
+      property real glowProximity: {
+        var p = artwork.mapFromItem(null, popup.glowScene.x, popup.glowScene.y)
+        var dx = p.x - artwork.width / 2
+        var dy = p.y - artwork.height / 2
+        return Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / (artwork.width / 2))
+      }
+
       Rectangle {
         anchors.fill: parent
         radius: width / 2
@@ -319,6 +329,10 @@ KeyboardPanel {
         maskSource: discMask
         maskThresholdMin: 0.5
         maskSpreadAtMin: 1.0
+        // The disc's own light: the sleeve is brightened with its own colours
+        // as the pointer approaches, instead of having a white texture drawn
+        // over it. The shader is already in use, so this costs nothing extra.
+        brightness: 0.22 * popup.glowFade * artwork.glowProximity
       }
 
       Text {
@@ -328,57 +342,6 @@ KeyboardPanel {
         color: popup.inkFaint
         font.family: popup.fontFamily
         font.pixelSize: 44
-      }
-
-      // The sleeve gets a different light from the rest of the card: a second
-      // rendering of the artwork itself, lifted in brightness and revealed
-      // through the radial texture. The highlight is therefore made of the
-      // sleeve's own colours rather than white paint, and follows the pointer
-      // while staying inside the disc. Mask + brightness only, no blur pass.
-      Item {
-        id: glowMaskField
-        width: cover.width
-        height: cover.height
-        visible: false
-        layer.enabled: true
-
-        property point localCenter: {
-          var p = artwork.mapFromItem(null, popup.glowScene.x, popup.glowScene.y)
-          return Qt.point(
-            Math.max(75, Math.min(artwork.width - 75, p.x)),
-            Math.max(75, Math.min(artwork.height - 75, p.y)))
-        }
-
-        Image {
-          source: Qt.resolvedUrl("assets/cursor-glow.png")
-          width: 150
-          height: 150
-          x: glowMaskField.localCenter.x - width / 2
-          y: glowMaskField.localCenter.y - height / 2
-        }
-      }
-
-      Image {
-        id: glowCover
-        anchors.fill: cover
-        visible: false
-        asynchronous: true
-        cache: true
-        smooth: true
-        fillMode: Image.PreserveAspectCrop
-        source: cover.source
-        sourceSize.width: 448
-        sourceSize.height: 448
-      }
-
-      MultiEffect {
-        anchors.fill: cover
-        source: glowCover
-        maskEnabled: true
-        maskSource: glowMaskField
-        brightness: 0.20
-        visible: cover.status === Image.Ready && popup.glowFade > 0.001
-        opacity: popup.glowFade
       }
 
       HoverHandler {
