@@ -409,6 +409,18 @@ KeyboardPanel {
           brightness: 0.22 * popup.glowFade * artwork.glowProximity
         }
 
+        // Printed-paper grain and a soft sheen at the vinyl's light angle.
+        // The texture is mostly transparent and its corners are already cut,
+        // so this is one static image over the cover — no mask, no blur, and
+        // no per-frame work while the record spins.
+        Image {
+          anchors.fill: cover
+          visible: cover.status === Image.Ready
+          source: Qt.resolvedUrl("assets/sleeve-texture.png")
+          smooth: true
+          opacity: 0.85
+        }
+
         // A hairline edge keeps the sleeve reading as a object, not a tile
         // pasted onto the backdrop.
         Rectangle {

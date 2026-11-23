@@ -54,8 +54,8 @@ something is playing, for the hairline and the card's timeline.
 
 - the current artwork as the only background, cropped to cover and blurred once — no gradients, no
   palette extraction, no stacked glass panels;
-- a square record sleeve with softly rounded corners and a contact shadow, holding the current
-  album cover;
+- a square record sleeve with softly rounded corners, a contact shadow and a faint printed-paper
+  grain, holding the current album cover;
 - a black vinyl record behind the sleeve, with pressed grooves, a low sheen and a warm label with a
   spindle hole. On play it glides out to the right and spins; on pause it coasts down smoothly and
   tucks back in. The artwork container reserves the record's travel, so it never reaches the text;
