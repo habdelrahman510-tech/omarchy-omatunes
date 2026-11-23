@@ -240,7 +240,7 @@ KeyboardPanel {
     Lib.CursorGlow {
       center: glowLayer.mapFromItem(null, popup.glowScene.x, popup.glowScene.y)
       diameter: 200 * popup.unit
-      strength: 0.10 * popup.glowFade
+      strength: 0.18 * popup.glowFade
     }
   }
 
@@ -330,25 +330,55 @@ KeyboardPanel {
         font.pixelSize: 44
       }
 
-      // The same light continued over the sleeve. Its centre is clamped to the
-      // square inscribed in the disc, so the texture — whose alpha is already
-      // zero at its edge — never spills past the artwork. No mask or blur pass
-      // is needed, which is what made following the pointer expensive.
-      Lib.CursorGlow {
-        id: artGlow
-        anchors.fill: parent
+      // The sleeve gets a different light from the rest of the card: a second
+      // rendering of the artwork itself, lifted in brightness and revealed
+      // through the radial texture. The highlight is therefore made of the
+      // sleeve's own colours rather than white paint, and follows the pointer
+      // while staying inside the disc. Mask + brightness only, no blur pass.
+      Item {
+        id: glowMaskField
+        width: cover.width
+        height: cover.height
+        visible: false
+        layer.enabled: true
 
         property point localCenter: {
           var p = artwork.mapFromItem(null, popup.glowScene.x, popup.glowScene.y)
-          var inset = 70
           return Qt.point(
-            Math.max(inset, Math.min(artwork.width - inset, p.x)),
-            Math.max(inset, Math.min(artwork.height - inset, p.y)))
+            Math.max(75, Math.min(artwork.width - 75, p.x)),
+            Math.max(75, Math.min(artwork.height - 75, p.y)))
         }
 
-        center: localCenter
-        diameter: 140
-        strength: 0.12 * popup.glowFade
+        Image {
+          source: Qt.resolvedUrl("assets/cursor-glow.png")
+          width: 150
+          height: 150
+          x: glowMaskField.localCenter.x - width / 2
+          y: glowMaskField.localCenter.y - height / 2
+        }
+      }
+
+      Image {
+        id: glowCover
+        anchors.fill: cover
+        visible: false
+        asynchronous: true
+        cache: true
+        smooth: true
+        fillMode: Image.PreserveAspectCrop
+        source: cover.source
+        sourceSize.width: 448
+        sourceSize.height: 448
+      }
+
+      MultiEffect {
+        anchors.fill: cover
+        source: glowCover
+        maskEnabled: true
+        maskSource: glowMaskField
+        brightness: 0.20
+        visible: cover.status === Image.Ready && popup.glowFade > 0.001
+        opacity: popup.glowFade
       }
 
       HoverHandler {
