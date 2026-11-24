@@ -85,6 +85,17 @@ hyprctl reload >/dev/null 2>&1 || true
 omarchy-restart-shell >/dev/null 2>&1 || true
 sleep 6
 
+echo "==> Restarting the patched player"
+# A shell reload can take the hidden player down with it. Start one clean
+# instance so this pass leaves a live MPRIS player, not just a clean config.
+pkill -x omatunes 2>/dev/null || true
+sleep 1
+setsid /usr/local/bin/omatunes --background >/dev/null 2>&1 < /dev/null &
+for _ in $(seq 1 20); do
+  busctl --user list 2>/dev/null | grep -q 'org.mpris.MediaPlayer2.omatunes' && break
+  sleep 0.5
+done
+
 echo "==> Verifying"
 resolved="$(command -v omatunes)"
 if [[ "$resolved" != "/usr/local/bin/omatunes" ]]; then
@@ -109,6 +120,10 @@ errors="$(hyprctl configerrors 2>&1 | sed '/^[[:space:]]*$/d')"
 if [[ -n "$errors" ]]; then
   echo "FAIL: Hyprland config errors:" >&2
   echo "$errors" >&2
+  exit 1
+fi
+if ! busctl --user list 2>/dev/null | grep -q 'org.mpris.MediaPlayer2.omatunes'; then
+  echo "FAIL: patched player is not running on MPRIS" >&2
   exit 1
 fi
 
