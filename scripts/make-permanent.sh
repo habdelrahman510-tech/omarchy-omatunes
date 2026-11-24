@@ -39,11 +39,9 @@ canonical = [
     "-- so it still appears in place when the bar itself is hidden.\n",
     'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })\n',
     "\n",
-    "-- Omatunes transport keys. The bare keysyms are the physical buttons;\n",
-    "-- the modifier forms are kept as fallbacks for keyboards that emit them.\n",
-    'o.bind("XF86PickupPhone", "Omatunes play/pause (bare key)", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
-    'o.bind("XF86HangupPhone", "Omatunes next (bare key)", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl next")\n',
-    'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
+    "-- Omatunes transport keys. The play/pause button emits Alt before its\n",
+    "-- media key, so bind that exact instant; next emits Ctrl+Alt first.\n",
+    'o.bind("ALT + XF86PickupPhone", "Omatunes play/pause", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
     'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl next")\n',
 ]
 
@@ -99,9 +97,7 @@ if ! diff -rq "$plugin_repo" "$installed" -x .git >/dev/null; then
 fi
 for expected in \
   'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })' \
-  'o.bind("XF86PickupPhone", "Omatunes play/pause (bare key)"' \
-  'o.bind("XF86HangupPhone", "Omatunes next (bare key)"' \
-  'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause"' \
+  'o.bind("ALT + XF86PickupPhone", "Omatunes play/pause"' \
   'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next"'
 do
   if ! grep -Fq "$expected" "$bindings"; then
