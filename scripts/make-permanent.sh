@@ -28,6 +28,7 @@ rsync -a --delete --exclude '.git' "$plugin_repo/" "$installed/"
 echo "==> Installing the panel keybinding"
 python3 - "$bindings" <<'PY'
 import pathlib
+import re
 import sys
 
 path = pathlib.Path(sys.argv[1])
@@ -36,19 +37,27 @@ canonical = [
     "-- Raise the Omatunes card from anywhere. The card anchors to the bar's strip,\n",
     "-- so it still appears in place when the bar itself is hidden.\n",
     'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })\n',
+    "\n",
+    "-- Omatunes transport keys, captured in wev: play/pause was pressed six\n",
+    "-- times with SUPER + ALT + XF86PickupPhone, next four times with\n",
+    "-- CTRL + ALT + XF86HangupPhone.\n",
+    'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
+    'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl next")\n',
 ]
+
+# Every bind owned by this plugin. Match on the actual binding line, not on
+# words in the comments, so the whole comment block can be dropped as a unit.
+owned = ('SUPER + ALT + O', 'XF86PickupPhone', 'XF86HangupPhone', 'omatunes-popup')
 
 out = []
 i = 0
 while i < len(lines):
     line = lines[i]
-    if 'o.bind("SUPER + ALT + O"' in line or 'omatunes-popup' in line:
-        # Drop both comment lines that belong to our own binding, even when a
-        # continuation line does not repeat the word "Omatunes".
-        dropped = 0
-        while out and out[-1].lstrip().startswith('--') and dropped < 2:
+    is_own_bind = re.match(r'^\s*o\.bind\(', line) and any(t in line for t in owned)
+    if is_own_bind or 'omatunes-popup' in line:
+        # Drop the comment lines directly above our own binding.
+        while out and out[-1].lstrip().startswith('--'):
             out.pop()
-            dropped += 1
         # Drop the whole bind statement, including a multi-line one.
         depth = 0
         while i < len(lines):
@@ -62,7 +71,8 @@ while i < len(lines):
 
 if out and not out[-1].endswith('\n'):
     out[-1] += '\n'
-out.append('\n')
+if out and out[-1].strip() != '':
+    out.append('\n')
 out.extend(canonical)
 path.write_text(''.join(out))
 PY
@@ -85,10 +95,16 @@ if ! diff -rq "$plugin_repo" "$installed" -x .git >/dev/null; then
   echo "FAIL: installed plugin differs from this checkout" >&2
   exit 1
 fi
-if ! grep -Fq 'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })' "$bindings"; then
-  echo "FAIL: panel binding missing from $bindings" >&2
-  exit 1
-fi
+for expected in \
+  'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })' \
+  'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause"' \
+  'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next"'
+do
+  if ! grep -Fq "$expected" "$bindings"; then
+    echo "FAIL: binding missing from $bindings: $expected" >&2
+    exit 1
+  fi
+done
 errors="$(hyprctl configerrors 2>&1 | sed '/^[[:space:]]*$/d')"
 if [[ -n "$errors" ]]; then
   echo "FAIL: Hyprland config errors:" >&2

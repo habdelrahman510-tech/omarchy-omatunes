@@ -24,7 +24,7 @@ feature set, and lands in `center` unless your `shell.json` says otherwise.
 
 `omarchy plugin update` replaces the installed plugin, and `pacman -Syu` can replace the patched
 player with an older packaged build. From this checkout, one command restores the whole setup —
-plugin sync, `Super + Alt + O` binding, patched player in `/usr/local/bin`, reload and verification:
+plugin sync, the panel and transport keybindings, patched player in `/usr/local/bin`, reload and verification:
 
 ```bash
 ./scripts/make-permanent.sh
@@ -103,6 +103,8 @@ appears and disappears, with no travel and no fade.
 | Popup, three bars | Repeat mode and equalizer |
 | `Escape` / click outside | Close the panel, then the popup |
 | `Super + Alt + O` | Open the companion from anywhere, with the bar shown or hidden |
+| `Super + Alt + XF86PickupPhone` | Play/pause — the physical stop/play button captured in `wev` |
+| `Ctrl + Alt + XF86HangupPhone` | Next track — the physical next button captured in `wev` |
 
 Volume is deliberately not in the popup. Omatunes owns its own volume; use the application, or your
 desktop's mixer, rather than a second control surface that can disagree with it.
