@@ -34,13 +34,15 @@ import sys
 path = pathlib.Path(sys.argv[1])
 lines = path.read_text().splitlines(keepends=True)
 canonical = [
+    "\n",
     "-- Raise the Omatunes card from anywhere. The card anchors to the bar's strip,\n",
     "-- so it still appears in place when the bar itself is hidden.\n",
     'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })\n',
     "\n",
-    "-- Omatunes transport keys, captured in wev: play/pause was pressed six\n",
-    "-- times with SUPER + ALT + XF86PickupPhone, next four times with\n",
-    "-- CTRL + ALT + XF86HangupPhone.\n",
+    "-- Omatunes transport keys. The bare keysyms are the physical buttons;\n",
+    "-- the modifier forms are kept as fallbacks for keyboards that emit them.\n",
+    'o.bind("XF86PickupPhone", "Omatunes play/pause (bare key)", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
+    'o.bind("XF86HangupPhone", "Omatunes next (bare key)", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl next")\n',
     'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl play-pause")\n',
     'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next", "/home/dog/.config/omarchy/plugins/omatunes/bin/omatunes-ctl next")\n',
 ]
@@ -71,8 +73,8 @@ while i < len(lines):
 
 if out and not out[-1].endswith('\n'):
     out[-1] += '\n'
-if out and out[-1].strip() != '':
-    out.append('\n')
+while out and out[-1].strip() == '':
+    out.pop()
 out.extend(canonical)
 path.write_text(''.join(out))
 PY
@@ -97,6 +99,8 @@ if ! diff -rq "$plugin_repo" "$installed" -x .git >/dev/null; then
 fi
 for expected in \
   'o.bind("SUPER + ALT + O", "Omatunes card", { panel = "omatunes" })' \
+  'o.bind("XF86PickupPhone", "Omatunes play/pause (bare key)"' \
+  'o.bind("XF86HangupPhone", "Omatunes next (bare key)"' \
   'o.bind("SUPER + ALT + XF86PickupPhone", "Omatunes play/pause"' \
   'o.bind("CTRL + ALT + XF86HangupPhone", "Omatunes next"'
 do

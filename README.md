@@ -103,8 +103,9 @@ appears and disappears, with no travel and no fade.
 | Popup, three bars | Repeat mode and equalizer |
 | `Escape` / click outside | Close the panel, then the popup |
 | `Super + Alt + O` | Open the companion from anywhere, with the bar shown or hidden |
-| `Super + Alt + XF86PickupPhone` | Play/pause — the physical stop/play button captured in `wev` |
-| `Ctrl + Alt + XF86HangupPhone` | Next track — the physical next button captured in `wev` |
+| `XF86PickupPhone` | Play/pause — the physical stop/play button, bound bare |
+| `XF86HangupPhone` | Next track — the physical next button, bound bare |
+| `Super + Alt + XF86PickupPhone` / `Ctrl + Alt + XF86HangupPhone` | Modifier fallbacks for keyboards that emit those combinations themselves |
 
 Volume is deliberately not in the popup. Omatunes owns its own volume; use the application, or your
 desktop's mixer, rather than a second control surface that can disagree with it.
