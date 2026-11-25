@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "id": "omatunes",
-  "name": "Omatunes",
+  "name": "Omatunes Companion",
   "version": "2.1.0",
   "author": "prof. dog",
-  "description": "Omatunes companion for the Omarchy bar: a standalone now-playing pill and a popup with the blurred artwork backdrop, transport, real repeat/equalizer controls and the actual upcoming queue",
+  "description": "A quiet, fixed-width now-playing pill and compact card for Omarchy. Mirrors Omatunes' MPRIS state with artwork, vinyl, seeking, transport, repeat and equalizer controls.",
   "kinds": [
     "bar-widget",
     "service"
@@ -14,8 +14,8 @@
     "service": "Service.qml"
   },
   "barWidget": {
-    "displayName": "Omatunes",
-    "description": "Standalone now-playing pill; left-click opens the Omatunes companion",
+    "displayName": "Omatunes Companion",
+    "description": "Fixed-width now-playing pill; left-click opens the companion card",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "center"
