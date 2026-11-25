@@ -1,6 +1,6 @@
-# Omatunes Companion
+# Omasleeve
 
-A quiet now-playing surface for the Omarchy bar. It holds one fixed width, reads Omatunes' real
+Omasleeve is a quiet now-playing surface for the Omarchy bar. It holds one fixed width, reads Omatunes' real
 state, and never pretends to be the player. Omatunes keeps the library, the queue, the audio engine
 and the truth about what is playing; this plugin is the small place you glance at.
 
@@ -41,7 +41,7 @@ what can I do with it, and where is it. This one is built around that restraint.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/habdelrahman510-tech/omarchy-omatunes --enable --yes
+omarchy plugin add https://github.com/habdelrahman510-tech/omasleeve --enable --yes
 ```
 
 Or, if it is already installed:
@@ -51,7 +51,8 @@ omarchy plugin update omatunes --yes
 ```
 
 The plugin installs as `omatunes`, needs Omatunes 2.1 or newer for the full feature set, and lands in
-`center` unless your `shell.json` says otherwise.
+`center` unless your `shell.json` says otherwise. The repository is named Omasleeve; the plugin id
+stays `omatunes` so existing installs keep working.
 
 ### Keeping a local checkout permanent
 
