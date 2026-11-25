@@ -58,7 +58,9 @@ something is playing, for the hairline and the card's timeline.
   grain, holding the current album cover;
 - a black vinyl record behind the sleeve, with pressed grooves, a low sheen and a warm label with a
   spindle hole. On play it glides out to the right and spins; on pause it coasts down smoothly and
-  tucks back in. The artwork container reserves the record's travel, so it never reaches the text;
+  tucks back in, and it is tucked when Omatunes is closed. A track change pulls it fully behind the
+  sleeve first, then brings it back out with the new track. The artwork container reserves the
+  record's travel, so it never reaches the text;
 - a pointer-following light that treats the two surfaces differently: the card gets a neutral lift
   from a pre-rendered radial texture clipped to its bounds, while the sleeve brightens with its own
   pixels as the pointer approaches — no overlay is drawn over the cover;
@@ -103,7 +105,7 @@ appears and disappears, with no travel and no fade.
 | Popup, three bars | Repeat mode and equalizer |
 | `Escape` / click outside | Close the panel, then the popup |
 | `Super + Alt + O` | Open the companion from anywhere, with the bar shown or hidden |
-| `Alt + XF86PickupPhone` | Play/pause — matches the modifier state at the instant your button's key goes down |
+| `Alt + XF86PickupPhone` | Play/pause — matches the modifier state at the instant your button's key goes down; starts Omatunes hidden if it is closed |
 | `Ctrl + Alt + XF86HangupPhone` | Next track — matches your next button's modifier order |
 
 Volume is deliberately not in the popup. Omatunes owns its own volume; use the application, or your
@@ -121,7 +123,7 @@ desktop's mixer, rather than a second control surface that can disagree with it.
 | Liked | `xesam:userRating`, else `~/.cache/omatunes_current_state.json` | Read-only |
 | Next queue entries, repeat mode, playing context | `~/.cache/omatunes_companion.json` | Schema 1, read-only, written by the app |
 | Equalizer state and presets | `~/.cache/omatunes_companion.json` | The real DSP, not a plugin effect |
-| Repeat / equalizer changes, like | UDP `127.0.0.1:18888` via `bin/omatunes-ctl` | Argument-validated, one-shot |
+| Repeat / equalizer changes, like | UDP `127.0.0.1:18888` via `bin/omatunes-ctl` | Argument-validated, one-shot; `play-pause` waits for a hidden start first |
 | Hidden start / show the window | `omatunes --background`, UDP `show` | `--background` is a process with no window; `show` opens and focuses one; a second launch hands `show` to the running instance instead of starting a second engine |
 | Theme tokens | `~/.cache/omatunes_theme.json` | Schema 1, read-only, written by the app |
 

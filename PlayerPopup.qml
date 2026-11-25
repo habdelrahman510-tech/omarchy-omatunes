@@ -313,6 +313,25 @@ KeyboardPanel {
       readonly property real recordOutX: 108
       readonly property bool spinning: popup.online && popup.state.isPlaying
 
+      // A new track pulls the record all the way behind the sleeve before the
+      // next one brings it back out. This is not tied to popup visibility: a
+      // track can change while the card is closed, and the state must still be
+      // settled by the time it opens.
+      property bool trackChanging: false
+      Timer {
+        id: trackRetract
+        interval: Style.duration(700)
+        repeat: false
+        onTriggered: artwork.trackChanging = false
+      }
+      Connections {
+        target: popup.state
+        function onUniqueIdChanged() {
+          artwork.trackChanging = true
+          trackRetract.restart()
+        }
+      }
+
       // How close the pointer is to the sleeve itself, from 0 outside to 1 at
       // its centre. The sleeve answers with its own pixels, never an overlay.
       property real glowProximity: {
@@ -324,7 +343,7 @@ KeyboardPanel {
 
       // 0 = tucked behind the sleeve, 1 = slid out to the right. One eased
       // value drives the record and the sleeve's little lift together.
-      property real slide: artwork.spinning ? 1 : 0
+      property real slide: !artwork.trackChanging && artwork.spinning ? 1 : 0
       Behavior on slide {
         enabled: popup.motionEnabled
         NumberAnimation {

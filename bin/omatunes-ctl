@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Send one control message to a running Omatunes player.
+"""Send one control message to Omatunes.
 
 Omatunes listens on a plain-text UDP socket at 127.0.0.1:18888. This helper is
 the plugin's only way to reach the verbs MPRIS does not carry: like, shuffle,
 absolute repeat mode, and the real equalizer state.
+
+`play-pause` is also the global transport key. Like the pill's play button, it
+starts Omatunes hidden (`--background`) when no instance is running, waits for
+the control socket, and only then sends the verb. No window appears.
 
 It is deliberately argument-validated: every message is chosen from a fixed
 vocabulary, and the one free-form value (an equalizer preset name) must match a
@@ -11,12 +15,20 @@ strict allowlist pattern. Nothing user-controlled from track metadata ever
 reaches the socket.
 """
 
+import fcntl
 import re
+import shutil
 import socket
+import subprocess
 import sys
+import time
+from pathlib import Path
 
 HOST = "127.0.0.1"
 PORT = 18888
+PORT_HEX = "%04x" % PORT
+PID_PATH = Path.home() / ".cache/omatunes.pid"
+WAKE_LOCK = Path.home() / ".cache/omatunes-wake.lock"
 
 PRESET_NAME = re.compile(r"^[A-Za-z0-9 +/&'-]{1,40}$")
 REPEAT_MODES = ("off", "queue", "track")
@@ -41,10 +53,78 @@ def send(message):
         sock.sendto(message.encode("utf-8"), (HOST, PORT))
 
 
+def pid_alive():
+    try:
+        pid = int(PID_PATH.read_text().strip())
+        return b"omatunes" in Path("/proc/%d/cmdline" % pid).read_bytes()
+    except (OSError, ValueError):
+        return False
+
+
+def udp_bound():
+    """The app's control socket is the only thing that can receive a verb."""
+    for name in ("udp", "udp6"):
+        try:
+            with open("/proc/net/" + name, encoding="ascii") as table:
+                next(table, None)
+                for line in table:
+                    fields = line.split()
+                    if len(fields) > 1 and fields[1].lower().endswith(":" + PORT_HEX):
+                        return True
+        except OSError:
+            pass
+    return False
+
+
+def wait_for_socket(timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if udp_bound():
+            return True
+        time.sleep(0.1)
+    return udp_bound()
+
+
+def wake_background():
+    if udp_bound():
+        return True
+
+    # Serialise concurrent key presses while the first one is still starting
+    # the engine, so two launches cannot race past the pid-file handoff.
+    try:
+        WAKE_LOCK.parent.mkdir(parents=True, exist_ok=True)
+        with WAKE_LOCK.open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if udp_bound():
+                return True
+            if pid_alive():
+                return wait_for_socket(2.0)
+
+            binary = shutil.which("omatunes") or "/usr/local/bin/omatunes"
+            try:
+                subprocess.Popen(
+                    [binary, "--background"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                    close_fds=True,
+                )
+            except OSError as error:
+                print("omatunes-ctl: cannot start Omatunes: %s" % error, file=sys.stderr)
+                return False
+            return wait_for_socket(8.0)
+    except OSError as error:
+        print("omatunes-ctl: cannot coordinate startup: %s" % error, file=sys.stderr)
+        return udp_bound()
+
+
 def main(argv):
     if len(argv) == 2:
         verb = argv[1]
         if verb in ("play-pause", "next", "prev", "like", "shuffle", "repeat", "show"):
+            if verb == "play-pause" and not wake_background():
+                return fail("Omatunes did not become ready", 1)
             send(verb)
             return 0
 
