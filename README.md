@@ -58,9 +58,9 @@ something is playing, for the hairline and the card's timeline.
   grain, holding the current album cover;
 - a black vinyl record behind the sleeve, with pressed grooves, a low sheen and a warm label with a
   spindle hole. On play it glides out to the right and spins; on pause it coasts down smoothly and
-  tucks back in, and it is tucked when Omatunes is closed. A track change pulls it fully behind the
-  sleeve first, then brings it back out with the new track. The artwork container reserves the
-  record's travel, so it never reaches the text;
+  retreats to a resting sliver, which is also how it sits when Omatunes is closed. A track change
+  pulls it back to that sliver first, then brings it out with the new track. The artwork container
+  reserves the record's travel, so it never reaches the text;
 - a pointer-following light that treats the two surfaces differently: the card gets a neutral lift
   from a pre-rendered radial texture clipped to its bounds, while the sleeve brightens with its own
   pixels as the pointer approaches — no overlay is drawn over the cover;
@@ -87,6 +87,11 @@ enough to be read instead of merely sensed.
 
 The card's height moves on that same curve too, so opening the utility menu stretches it down and
 closing it pulls it back instead of jumping between two sizes.
+
+The record's travel, the sleeve's lift and its contact shadow share one 280ms OutCubic budget, so
+none of them finishes after another and reads as a stutter. Rotation is a declarative animation on
+the render loop, not a JavaScript timer pretending to be a frame clock; on pause the platter coasts
+through a short tail before it settles.
 
 The transition follows the bar's animation setting: with bar animations disabled the card simply
 appears and disappears, with no travel and no fade.

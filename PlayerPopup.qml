@@ -309,18 +309,27 @@ KeyboardPanel {
 
       readonly property real sleeveSize: 224
       readonly property real recordSize: 216
-      readonly property real recordTuckedX: 8
+      // Resting position still leaves a 28px sliver outside the sleeve: a
+      // stopped record should read as present, not vanish behind the cover.
+      readonly property real recordTuckedX: 36
       readonly property real recordOutX: 108
       readonly property bool spinning: popup.online && popup.state.isPlaying
+      readonly property bool shouldSpin: artwork.spinning && popup.open
 
-      // A new track pulls the record all the way behind the sleeve before the
-      // next one brings it back out. This is not tied to popup visibility: a
+      // One motion budget for the record and the sleeve that lifts with it.
+      // The old 620ms curve outlived the item it was moving and read as a
+      // stagger; keeping every part on the same short curve removes that.
+      readonly property int motionDuration: Style.duration(280)
+      readonly property int spinDuration: Style.duration(5000)
+
+      // A new track pulls the record back to its resting sliver before the
+      // next one brings it out again. This is not tied to popup visibility: a
       // track can change while the card is closed, and the state must still be
       // settled by the time it opens.
       property bool trackChanging: false
       Timer {
         id: trackRetract
-        interval: Style.duration(700)
+        interval: artwork.motionDuration + Style.duration(80)
         repeat: false
         onTriggered: artwork.trackChanging = false
       }
@@ -341,41 +350,74 @@ KeyboardPanel {
         return Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / (artwork.sleeveSize / 2))
       }
 
-      // 0 = tucked behind the sleeve, 1 = slid out to the right. One eased
-      // value drives the record and the sleeve's little lift together.
+      // 0 = resting sliver, 1 = slid fully out. One eased value drives the
+      // record and the sleeve's lift, all on the same short motion budget.
       property real slide: !artwork.trackChanging && artwork.spinning ? 1 : 0
       Behavior on slide {
         enabled: popup.motionEnabled
         NumberAnimation {
-          duration: Style.duration(620)
-          easing.type: Easing.Bezier
-          easing.bezierCurve: Style.easeOut
+          duration: artwork.motionDuration
+          easing.type: Easing.OutCubic
         }
       }
 
-      // An angular velocity rather than a running flag: on pause the target
-      // drops to zero and the platter coasts to a stop instead of freezing on
-      // whatever frame it happened to be on. dt comes from the clock so a
-      // busy frame cannot change the speed.
+      // Rotation is owned by declarative animations, so the render loop drives
+      // it instead of a 16ms JavaScript timer fighting frame pacing. On pause
+      // the platter coasts through a short tail instead of freezing.
       property real spinAngle: 0
-      property real spinVelocity: 0
-      property real lastTick: 0
+      readonly property real spinTail: 42
 
-      Timer {
-        interval: 16
-        repeat: true
-        running: popup.open && popup.motionEnabled
-        onTriggered: {
-          var now = Date.now()
-          var dt = artwork.lastTick > 0 ? Math.min(0.05, (now - artwork.lastTick) / 1000) : 0.016
-          artwork.lastTick = now
-          var target = artwork.spinning ? 72 : 0
-          var gain = artwork.spinning ? 0.08 : 0.045
-          artwork.spinVelocity += (target - artwork.spinVelocity) * gain
-          if (!artwork.spinning && artwork.spinVelocity < 0.15) artwork.spinVelocity = 0
-          artwork.spinAngle = (artwork.spinAngle + artwork.spinVelocity * dt) % 360
+      NumberAnimation {
+        id: spin
+        target: artwork
+        property: "spinAngle"
+        duration: artwork.spinDuration
+        loops: Animation.Infinite
+        easing.type: Easing.Linear
+      }
+      NumberAnimation {
+        id: coast
+        target: artwork
+        property: "spinAngle"
+        duration: Style.duration(620)
+        easing.type: Easing.OutCubic
+      }
+
+      function startSpin() {
+        coast.stop()
+        if (!popup.motionEnabled || artwork.spinDuration <= 0) return
+        spin.from = artwork.spinAngle
+        spin.to = artwork.spinAngle + 360
+        spin.restart()
+      }
+
+      function coastToStop() {
+        spin.stop()
+        if (!popup.motionEnabled || !popup.open) return
+        coast.from = artwork.spinAngle
+        coast.to = artwork.spinAngle + artwork.spinTail
+        coast.restart()
+      }
+
+      function syncSpin() {
+        if (!popup.motionEnabled || !popup.open || artwork.spinDuration <= 0) {
+          spin.stop()
+          coast.stop()
+          return
         }
-        onRunningChanged: { if (!running) artwork.lastTick = 0 }
+        if (artwork.shouldSpin) startSpin()
+      }
+
+      onShouldSpinChanged: {
+        if (shouldSpin) startSpin()
+        else coastToStop()
+      }
+      Connections {
+        target: popup
+        function onMotionEnabledChanged() { artwork.syncSpin() }
+      }
+      Component.onCompleted: {
+        if (shouldSpin) startSpin()
       }
 
       // The record sits behind the sleeve. Its texture is pre-rendered: this
@@ -403,9 +445,8 @@ KeyboardPanel {
         Behavior on scale {
           enabled: popup.motionEnabled
           NumberAnimation {
-            duration: Style.duration(620)
-            easing.type: Easing.Bezier
-            easing.bezierCurve: Style.easeOut
+            duration: artwork.motionDuration
+            easing.type: Easing.OutCubic
           }
         }
 
@@ -418,7 +459,10 @@ KeyboardPanel {
           radius: 8
           color: "#000000"
           opacity: artwork.spinning ? 0.34 : 0.24
-          Behavior on opacity { NumberAnimation { duration: Style.duration(300) } }
+          Behavior on opacity {
+            enabled: popup.motionEnabled
+            NumberAnimation { duration: artwork.motionDuration; easing.type: Easing.OutCubic }
+          }
         }
 
         Image {
