@@ -164,29 +164,3 @@ none — writes the bytes to `~/.cache/omatunes_current_art.jpg`, and appends th
 The plugin keeps that query but checks only the path: `file://` or an absolute path is accepted,
 anything else — `http:`, `data:`, a bare remote reference — is rejected. Metadata can never turn
 into a network request.
-
-## Architecture
-
-```
-BarWidget.qml            fixed-width pill; left-click opens the card
-Service.qml              `service` entry point, loaded once per shell session
-PlayerPopup.qml          the card: fixed design space, backdrop, transport, utility panel
-lib/OmatunesService.qml  singleton: MPRIS + companion snapshot, position model, verbs
-lib/ThemeAdapter.qml     singleton: Omatunes theme tokens with a shell fallback
-lib/ArtworkBackground.qml one artwork image, blurred once, cross-faded on track change
-lib/Colors.js            colour maths (alpha, mixing, luminance)
-bin/omatunes-ctl         the one-shot UDP helper
-```
-
-The service is a QML singleton owned by the shell's engine, and the plugin declares the `service`
-kind so Omarchy instantiates it at start-up. Closing the card destroys a window, not a subscription:
-playback state, the queue snapshot and the current artwork identity stay live, which is why
-reopening is instant and always current.
-
-## Cost
-
-One MPRIS subscription set, two watched files and a 200ms clock while Omatunes is playing — the bar
-hairline needs it too. The clock reads Quickshell's live MPRIS position getter; track changes and
-seeks rebase it through the player's `Seeked` signal, so there is no second estimate to drift.
-Artwork is decoded once per track at 320px for the backdrop and 616px for the tile, blurred by a
-single GPU pass. The card cross-fades rather than re-decoding, and nothing is rendered while hidden.
