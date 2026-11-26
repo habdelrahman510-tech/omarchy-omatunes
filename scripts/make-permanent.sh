@@ -23,7 +23,11 @@ for path in "$plugin_repo" "$app_repo"; do
 done
 
 echo "==> Syncing plugin to $installed"
-rsync -a --delete --exclude '.git' "$plugin_repo/" "$installed/"
+# Python caches are build residue, not plugin content. `--delete-excluded` also
+# clears any cache an earlier run copied, so parity stays honest.
+rsync -a --delete --delete-excluded \
+  --exclude '.git' --exclude '__pycache__' --exclude '*.pyc' \
+  "$plugin_repo/" "$installed/"
 
 echo "==> Installing the panel keybinding"
 python3 - "$bindings" <<'PY'
@@ -102,7 +106,8 @@ if [[ "$resolved" != "/usr/local/bin/omatunes" ]]; then
   echo "FAIL: omatunes resolves to $resolved, not /usr/local/bin/omatunes" >&2
   exit 1
 fi
-if ! diff -rq "$plugin_repo" "$installed" -x .git >/dev/null; then
+if ! diff -rq "$plugin_repo" "$installed" \
+  -x .git -x __pycache__ -x '*.pyc' >/dev/null; then
   echo "FAIL: installed plugin differs from this checkout" >&2
   exit 1
 fi
