@@ -110,6 +110,7 @@ controls for it — nothing else.
 | Card, transport | Previous / play-pause / next / shuffle |
 | Card, three bars | Repeat mode and equalizer |
 | `Escape` / click outside | Close the card |
+| `omatunes-ctl quit` | Stop the background engine cleanly; closing the Omatunes window does not |
 | `Super + Alt + O` | Open the card from anywhere, with the bar shown or hidden |
 | `Alt + XF86PickupPhone` | Play/pause — matches the modifier state at key-down; starts Omatunes hidden if closed |
 | `Ctrl + Alt + XF86HangupPhone` | Next track — matches your next button's modifier order |
@@ -147,7 +148,7 @@ With bar animations disabled, the card simply appears and disappears — no trav
 | Liked | `xesam:userRating`, else the app's state cache | Read-only |
 | Repeat, equalizer, upcoming state | `~/.cache/omatunes_companion.json` | Schema 1, read-only, written by the app |
 | Repeat / equalizer changes, like | UDP `127.0.0.1:18888` via `bin/omatunes-ctl` | Argument-validated, one-shot |
-| Hidden start / show the window | `omatunes --background`, UDP `show` | One engine; a second launch hands off instead of starting another |
+| Hidden start / show / quit | `omatunes --background`, UDP `show`, UDP `quit` | One engine; a second launch hands off instead of starting another |
 | Theme tokens | `~/.cache/omatunes_theme.json` | Schema 1, read-only, written by the app |
 
 The companion and theme cache files are written atomically by Omatunes and are optional. If they are

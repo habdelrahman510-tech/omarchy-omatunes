@@ -3,7 +3,7 @@
 
 Omatunes listens on a plain-text UDP socket at 127.0.0.1:18888. This helper is
 the plugin's only way to reach the verbs MPRIS does not carry: like, shuffle,
-absolute repeat mode, and the real equalizer state.
+absolute repeat mode, the real equalizer state, and a clean `quit`.
 
 `play-pause` is also the global transport key. Like the pill's play button, it
 starts Omatunes hidden (`--background`) when no instance is running, waits for
@@ -34,7 +34,7 @@ PRESET_NAME = re.compile(r"^[A-Za-z0-9 +/&'-]{1,40}$")
 REPEAT_MODES = ("off", "queue", "track")
 
 USAGE = (
-    "usage: omatunes-ctl {play-pause|next|prev|like|shuffle|repeat|show}\n"
+    "usage: omatunes-ctl {play-pause|next|prev|like|shuffle|repeat|show|quit}\n"
     "       omatunes-ctl seek <seconds>\n"
     "       omatunes-ctl repeat {off|queue|track}\n"
     "       omatunes-ctl eq {on|off}\n"
@@ -122,7 +122,9 @@ def wake_background():
 def main(argv):
     if len(argv) == 2:
         verb = argv[1]
-        if verb in ("play-pause", "next", "prev", "like", "shuffle", "repeat", "show"):
+        if verb in ("play-pause", "next", "prev", "like", "shuffle", "repeat", "show", "quit"):
+            # Only transport needs to wake a sleeping engine. `quit` must never
+            # start a player just to stop it.
             if verb == "play-pause" and not wake_background():
                 return fail("Omatunes did not become ready", 1)
             send(verb)
